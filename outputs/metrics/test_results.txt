@@ -1,0 +1,82 @@
+﻿python.exe : test_classifier_rejects_empty_training_data (test_knn.TestAdditionalValidation.test_classifier_rejects_emp
+ty_training_data) ... ok
+所在位置 行:15 字符: 1714
++ ... sults.txt"; & "E:\annaconda1\envs\ai_ml\python.exe" -m unittest disco ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (test_classifier...ng_data) ... ok:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+test_classifier_rejects_invalid_k (test_knn.TestAdditionalValidation.test_classifier_rejects_invalid_k) ... ok
+test_classifier_rejects_invalid_metric (test_knn.TestAdditionalValidation.test_classifier_rejects_invalid_metric) ... o
+k
+test_invalid_k_raises (test_knn.TestCrossValidateKNN.test_invalid_k_raises) ... ok
+test_k1_separates_simple_data (test_knn.TestCrossValidateKNN.test_k1_separates_simple_data) ... ok
+test_returns_all_k_values (test_knn.TestCrossValidateKNN.test_returns_all_k_values) ... ok
+test_euclidean_distance_hand_calculation (test_knn.TestDistanceFunctions.test_euclidean_distance_hand_calculation) ... 
+ok
+test_manhattan_distance_hand_calculation (test_knn.TestDistanceFunctions.test_manhattan_distance_hand_calculation) ... 
+ok
+test_pairwise_euclidean_matches_hand_calculation (test_knn.TestDistanceFunctions.test_pairwise_euclidean_matches_hand_c
+alculation) ... ok
+test_pairwise_euclidean_matches_numpy_formula (test_knn.TestDistanceFunctions.test_pairwise_euclidean_matches_numpy_for
+mula) ... ok
+test_pairwise_manhattan_matches_hand_calculation (test_knn.TestDistanceFunctions.test_pairwise_manhattan_matches_hand_c
+alculation) ... ok
+test_pairwise_rejects_dimension_mismatch (test_knn.TestDistanceFunctions.test_pairwise_rejects_dimension_mismatch) ... 
+ok
+test_pairwise_rejects_unknown_metric (test_knn.TestDistanceFunctions.test_pairwise_rejects_unknown_metric) ... ok
+test_accuracy_score (test_knn.TestEvaluationMetrics.test_accuracy_score) ... ok
+test_accuracy_score_rejects_length_mismatch (test_knn.TestEvaluationMetrics.test_accuracy_score_rejects_length_mismatch
+) ... ok
+test_classification_report_contains_metrics (test_knn.TestEvaluationMetrics.test_classification_report_contains_metrics
+) ... ok
+test_classification_report_handles_unpredicted_class (test_knn.TestEvaluationMetrics.test_classification_report_handles
+_unpredicted_class) ... ok
+test_confusion_matrix (test_knn.TestEvaluationMetrics.test_confusion_matrix) ... ok
+test_confusion_matrix_label_order (test_knn.TestEvaluationMetrics.test_confusion_matrix_label_order) ... ok
+test_confusion_matrix_rejects_length_mismatch (test_knn.TestEvaluationMetrics.test_confusion_matrix_rejects_length_mism
+atch) ... ok
+test_k3_majority_vote (test_knn.TestKNNClassifier.test_k3_majority_vote) ... ok
+test_k_too_large_raises (test_knn.TestKNNClassifier.test_k_too_large_raises) ... ok
+test_predict_before_fit_raises (test_knn.TestKNNClassifier.test_predict_before_fit_raises) ... ok
+test_predict_dimension_mismatch_raises (test_knn.TestKNNClassifier.test_predict_dimension_mismatch_raises) ... ok
+test_predict_empty_raises (test_knn.TestKNNClassifier.test_predict_empty_raises) ... ok
+test_predicts_simple_two_class (test_knn.TestKNNClassifier.test_predicts_simple_two_class) ... ok
+test_distance_weighted_prediction (test_knn.TestKNNRegressor.test_distance_weighted_prediction) ... ok
+test_exact_match_dominates_distance_weighting (test_knn.TestKNNRegressor.test_exact_match_dominates_distance_weighting)
+ ... ok
+test_invalid_weights_raises (test_knn.TestKNNRegressor.test_invalid_weights_raises) ... ok
+test_k_too_large_raises (test_knn.TestKNNRegressor.test_k_too_large_raises) ... ok
+test_predict_before_fit_raises (test_knn.TestKNNRegressor.test_predict_before_fit_raises) ... ok
+test_uniform_mean_prediction (test_knn.TestKNNRegressor.test_uniform_mean_prediction) ... ok
+test_clear_majority (test_knn.TestMajorityVote.test_clear_majority) ... ok
+test_distance_shape_mismatch_raises (test_knn.TestMajorityVote.test_distance_shape_mismatch_raises) ... ok
+test_empty_labels_raises (test_knn.TestMajorityVote.test_empty_labels_raises) ... ok
+test_three_way_tie_uses_nearest (test_knn.TestMajorityVote.test_three_way_tie_uses_nearest) ... ok
+test_tie_broken_by_nearest_distance (test_knn.TestMajorityVote.test_tie_broken_by_nearest_distance) ... ok
+test_tie_without_distances_raises (test_knn.TestMajorityVote.test_tie_without_distances_raises) ... ok
+test_nearest_neighbors_manhattan (test_knn.TestNearestNeighbors.test_nearest_neighbors_manhattan) ... ok
+test_nearest_neighbors_multiple_queries (test_knn.TestNearestNeighbors.test_nearest_neighbors_multiple_queries) ... ok
+test_nearest_neighbors_rejects_dimension_mismatch (test_knn.TestNearestNeighbors.test_nearest_neighbors_rejects_dimensi
+on_mismatch) ... ok
+test_nearest_neighbors_rejects_too_large_k (test_knn.TestNearestNeighbors.test_nearest_neighbors_rejects_too_large_k) .
+.. ok
+test_nearest_neighbors_sorted_by_distance (test_knn.TestNearestNeighbors.test_nearest_neighbors_sorted_by_distance) ...
+ ok
+test_loop_matches_vectorized_euclidean (test_knn.TestPairwiseDistancesLoop.test_loop_matches_vectorized_euclidean) ... 
+ok
+test_loop_matches_vectorized_manhattan (test_knn.TestPairwiseDistancesLoop.test_loop_matches_vectorized_manhattan) ... 
+ok
+test_loop_rejects_dimension_mismatch (test_knn.TestPairwiseDistancesLoop.test_loop_rejects_dimension_mismatch) ... ok
+test_loop_rejects_unknown_metric (test_knn.TestPairwiseDistancesLoop.test_loop_rejects_unknown_metric) ... ok
+test_each_sample_in_validation_once (test_knn.TestStratifiedKFold.test_each_sample_in_validation_once) ... ok
+test_fold_sizes_and_class_balance (test_knn.TestStratifiedKFold.test_fold_sizes_and_class_balance) ... ok
+test_folds_reproducible (test_knn.TestStratifiedKFold.test_folds_reproducible) ... ok
+test_too_many_splits_raises (test_knn.TestStratifiedKFold.test_too_many_splits_raises) ... ok
+test_split_indices_keep_class_ratio (test_knn.TestStratifiedSplitIndices.test_split_indices_keep_class_ratio) ... ok
+test_split_indices_reproducible (test_knn.TestStratifiedSplitIndices.test_split_indices_reproducible) ... ok
+
+----------------------------------------------------------------------
+Ran 53 tests in 0.602s
+
+OK

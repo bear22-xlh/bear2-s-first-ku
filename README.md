@@ -54,12 +54,15 @@ knn_practice/
 │       ├── visualization_summary.txt
 │       ├── sklearn_comparison.txt
 │       ├── exception_checks.txt
-│       └── performance_comparison.txt
+│       ├── performance_comparison.txt
+│       ├── parameter_comparison.txt
+│       └── test_results.txt
 ├── knn.py              # KNN 核心实现
 ├── main.py             # 项目入口与实验流程
 ├── test_knn.py         # 单元测试
 ├── requirements.txt    # 依赖版本
-└── README.md
+├── README.md
+└── report.md           # 完整实验报告
 ```
 
 ## 4. 数据说明
@@ -203,25 +206,41 @@ python -m unittest -v test_knn.py
 
 | 数据规模 | 循环版 | 向量化版 | 加速 |
 |---|---:|---:|---:|
-| 100 x 100 | 120.31 ms | 0.48 ms | 252.3 倍 |
-| 300 x 150 | 450.63 ms | 2.94 ms | 153.1 倍 |
-| 500 x 250 | 1204.35 ms | 7.49 ms | 160.9 倍 |
+| 100 x 100 | 136.52 ms | 0.71 ms | 192.5 倍 |
+| 300 x 150 | 638.22 ms | 3.26 ms | 195.8 倍 |
+| 500 x 250 | 1467.08 ms | 7.37 ms | 199.0 倍 |
 
 - 循环版 `pairwise_distances_loop()` 只用于性能对比，生产代码使用向量化 `pairwise_distances()`
-- 向量化版用 NumPy 广播，把双重 Python 循环交给底层 C 实现，所以快 150 倍以上
+- 向量化版用 NumPy 广播，把双重 Python 循环交给底层 C 实现，本次运行快约 190 倍
+- 具体耗时会随机器和运行状态波动，但趋势稳定
 - 记录：`outputs/metrics/exception_checks.txt`、`outputs/metrics/performance_comparison.txt`
 - 验证：循环版与向量化版结果一致；当前项目共 53 个测试全部通过
 
-## 14. 复现约定
+## 14. 测试与报告
+
+- 测试命令：
+
+```powershell
+& "E:\annaconda1\envs\ai_ml\python.exe" -m unittest discover -v
+```
+
+- 测试结果：53 个测试全部通过，记录在 `outputs/metrics/test_results.txt`
+- 覆盖范围：距离函数、最近邻搜索、多数投票、分类器、回归器、评估指标、分层交叉验证、异常处理
+- 参数影响实验记录：`outputs/metrics/parameter_comparison.txt`
+  - 测试集三种设置准确率都是 0.9667
+  - 5 折交叉验证：欧氏 + 标准化 0.9663、欧氏 + 未标准化 0.9750、曼哈顿 + 标准化 0.9413、曼哈顿 + 未标准化 0.9496
+- 完整实验报告：`report.md`
+
+## 15. 复现约定
 
 - 全项目统一随机种子：`42`（定义在 `knn.py` 的 `RANDOM_SEED`）
 - 数据划分、交叉验证等所有随机操作都使用该种子
 - 标准化参数只由训练集计算，测试集只做变换，避免信息泄漏
 
-## 15. 运行方式
+## 16. 运行方式
 
 ```bash
 python main.py
 ```
 
-当前进度：第 11-12 步（sklearn 对照、异常处理与性能优化）已完成。
+当前进度：全部 14 步已完成，报告见 `report.md`。

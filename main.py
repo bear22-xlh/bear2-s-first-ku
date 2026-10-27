@@ -37,6 +37,7 @@ from knn import (
     nearest_neighbors,
     pairwise_distances,
     pairwise_distances_loop,
+    stratified_kfold_indices,
     stratified_split_indices,
 )
 
@@ -785,6 +786,101 @@ def benchmark_distance_functions(repeats: int = 3) -> str:
     return "\n".join(lines)
 
 
+def run_parameter_experiments(
+    X_train_scaled: np.ndarray,
+    X_test_scaled: np.ndarray,
+    y_train: np.ndarray,
+    y_test: np.ndarray,
+    X_train_raw: np.ndarray,
+    X_test_raw: np.ndarray,
+    y_train_raw: np.ndarray,
+    y_test_raw: np.ndarray,
+    k: int,
+) -> str:
+    """比较距离度量和标准化对准确率的影响（测试集 + 5 折交叉验证）。"""
+    euclidean_scaled = KNNClassifier(k=k, metric="euclidean").fit(
+        X_train_scaled, y_train
+    )
+    manhattan_scaled = KNNClassifier(k=k, metric="manhattan").fit(
+        X_train_scaled, y_train
+    )
+    euclidean_raw = KNNClassifier(k=k, metric="euclidean").fit(
+        X_train_raw, y_train_raw
+    )
+
+    accuracy_euclidean_scaled = accuracy_score(
+        y_test, euclidean_scaled.predict(X_test_scaled)
+    )
+    accuracy_manhattan_scaled = accuracy_score(
+        y_test, manhattan_scaled.predict(X_test_scaled)
+    )
+    accuracy_euclidean_raw = accuracy_score(
+        y_test_raw, euclidean_raw.predict(X_test_raw)
+    )
+
+    splits = stratified_kfold_indices(
+        y_train_raw, n_splits=CV_FOLDS, random_state=RANDOM_SEED
+    )
+    cv_results: dict[tuple[str, bool], tuple[float, float]] = {}
+    for metric in ("euclidean", "manhattan"):
+        for scaled in (True, False):
+            fold_accuracies = []
+            for train_index, validation_index in splits:
+                if scaled:
+                    scaler = StandardScaler()
+                    X_fold_train = scaler.fit_transform(X_train_raw[train_index])
+                    X_fold_validation = scaler.transform(
+                        X_train_raw[validation_index]
+                    )
+                else:
+                    X_fold_train = X_train_raw[train_index]
+                    X_fold_validation = X_train_raw[validation_index]
+
+                model = KNNClassifier(k=k, metric=metric).fit(
+                    X_fold_train, y_train_raw[train_index]
+                )
+                predictions = model.predict(X_fold_validation)
+                fold_accuracies.append(
+                    accuracy_score(y_train_raw[validation_index], predictions)
+                )
+            cv_results[(metric, scaled)] = (
+                float(np.mean(fold_accuracies)),
+                float(np.std(fold_accuracies)),
+            )
+
+    lines = [
+        f"参数影响实验（k={k}）:",
+        f"测试集（{len(y_test)} 条）:",
+        f"  欧氏 + 标准化: {accuracy_euclidean_scaled:.4f}",
+        f"  曼哈顿 + 标准化: {accuracy_manhattan_scaled:.4f}",
+        f"  欧氏 + 未标准化: {accuracy_euclidean_raw:.4f}",
+        "",
+        f"{CV_FOLDS} 折交叉验证（训练集 {len(y_train_raw)} 条，mean ± std）:",
+    ]
+    for metric in ("euclidean", "manhattan"):
+        for scaled in (True, False):
+            mean_accuracy, std_accuracy = cv_results[(metric, scaled)]
+            metric_name = "欧氏" if metric == "euclidean" else "曼哈顿"
+            scale_name = "标准化" if scaled else "未标准化"
+            lines.append(
+                f"  {metric_name} + {scale_name}: "
+                f"{mean_accuracy:.4f} ± {std_accuracy:.4f}"
+            )
+
+    lines.extend(
+        [
+            "",
+            "说明:",
+            "  1. 测试集只有 30 条，准确率分辨率约 0.033，三种设置都只错 1 个，看不出差异。",
+            "  2. 交叉验证下欧氏距离优于曼哈顿；未标准化欧氏略高于标准化，",
+            "     说明 Iris 中数值范围较大的花瓣特征本身也最有区分度，标准化会削弱它们的权重。",
+            "  3. 标准化仍建议保留：它让距离不受量纲影响，换数据集时更稳健；",
+            "     本项目主实验仍使用标准化后的数据。",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def main() -> None:
     show_environment()
 
@@ -1004,6 +1100,24 @@ def main() -> None:
     performance_path.write_text(performance_text + "\n", encoding="utf-8")
     print(f"\n异常检查记录已保存: {exception_path}")
     print(f"性能对比记录已保存: {performance_path}")
+
+    parameter_text = run_parameter_experiments(
+        X_train,
+        X_test,
+        y_train,
+        y_test,
+        X_train_raw,
+        X_test_raw,
+        y_train_raw,
+        y_test_raw,
+        best_k,
+    )
+    print("\n参数影响实验:")
+    print(parameter_text)
+
+    parameter_path = METRICS_DIR / "parameter_comparison.txt"
+    parameter_path.write_text(parameter_text + "\n", encoding="utf-8")
+    print(f"\n参数影响记录已保存: {parameter_path}")
 
 
 if __name__ == "__main__":
