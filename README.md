@@ -33,8 +33,11 @@ knn_practice/
 ├── data/
 │   └── iris_dataset.csv
 ├── outputs/
-│   ├── figures/        # 图表
-│   └── metrics/        # 指标与实验记录
+│   ├── figures/
+│   │   ├── feature_histograms.png
+│   │   └── petal_scatter.png
+│   └── metrics/
+│       └── data_overview.txt
 ├── knn.py              # KNN 核心实现
 ├── main.py             # 项目入口与实验流程
 ├── requirements.txt    # 依赖版本
@@ -44,10 +47,17 @@ knn_practice/
 ## 4. 数据说明
 
 - 文件：`data/iris_dataset.csv`
-- 规模：150 行 × 5 列（4 个数值特征 + 1 个类别列 `target_name`）
-- 类别：setosa、versicolor、virginica，各 50 条
+- 原始规模：150 行 × 5 列（4 个数值特征 + 1 个类别列 `target_name`）
+- 去重后规模：149 行 × 5 列
+- 类别分布：原始三类各 50 条；去重后 setosa 50、versicolor 50、virginica 49
 - 缺失值：无
-- 重复样本：1 条，第 2 步会处理并记录
+- 重复样本：1 条（virginica，特征 5.8/2.7/5.1/1.9），保留一条
+
+数据探索结论：
+
+- 四个特征量纲差异明显：花瓣长度标准差约 1.77，花萼宽度只有约 0.44，后续需要标准化。
+- 花瓣长度和花瓣宽度对类别区分度最高，setosa 可以仅凭花瓣特征与另外两类分开。
+- versicolor 和 virginica 在花瓣特征上有少量重叠，是后续分类的主要误差来源。
 
 ## 5. 复现约定
 
@@ -61,4 +71,4 @@ knn_practice/
 python main.py
 ```
 
-当前进度：第 1 步（工程环境与代码规范）已完成。
+当前进度：第 2 步（数据读取与探索）已完成。
