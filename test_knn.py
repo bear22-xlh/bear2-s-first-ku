@@ -9,11 +9,16 @@ import numpy as np
 from knn import (
     KNNClassifier,
     KNNRegressor,
+    accuracy_score,
+    classification_report,
+    confusion_matrix,
+    cross_validate_knn,
     euclidean_distance,
     majority_vote,
     manhattan_distance,
     nearest_neighbors,
     pairwise_distances,
+    stratified_kfold_indices,
     stratified_split_indices,
 )
 
@@ -233,6 +238,120 @@ class TestKNNRegressor(unittest.TestCase):
     def test_invalid_weights_raises(self) -> None:
         with self.assertRaises(ValueError):
             KNNRegressor(k=1, weights="linear")
+
+
+class TestEvaluationMetrics(unittest.TestCase):
+    def test_accuracy_score(self) -> None:
+        y_true = np.array(["a", "b", "c"])
+        y_pred = np.array(["a", "b", "a"])
+        self.assertAlmostEqual(accuracy_score(y_true, y_pred), 2 / 3)
+
+    def test_confusion_matrix(self) -> None:
+        y_true = np.array(["a", "a", "b", "b"])
+        y_pred = np.array(["a", "b", "a", "b"])
+        expected = np.array([[1, 1], [1, 1]])
+        np.testing.assert_array_equal(
+            confusion_matrix(y_true, y_pred, labels=["a", "b"]), expected
+        )
+
+    def test_confusion_matrix_label_order(self) -> None:
+        y_true = np.array(["a", "a", "a", "b"])
+        y_pred = np.array(["a", "a", "b", "b"])
+        expected = np.array([[1, 0], [1, 2]])
+        np.testing.assert_array_equal(
+            confusion_matrix(y_true, y_pred, labels=["b", "a"]), expected
+        )
+
+    def test_classification_report_contains_metrics(self) -> None:
+        report = classification_report(
+            np.array(["a", "a", "b", "b"]),
+            np.array(["a", "b", "a", "b"]),
+            labels=["a", "b"],
+        )
+        self.assertIn("precision", report)
+        self.assertIn("recall", report)
+        self.assertIn("f1", report)
+        self.assertIn("accuracy: 0.5000", report)
+
+    def test_classification_report_handles_unpredicted_class(self) -> None:
+        report = classification_report(
+            np.array(["a", "a", "b"]),
+            np.array(["a", "a", "a"]),
+            labels=["a", "b"],
+        )
+        self.assertIn("b", report)
+        self.assertIn("0.0000", report)
+
+    def test_accuracy_score_rejects_length_mismatch(self) -> None:
+        with self.assertRaises(ValueError):
+            accuracy_score(np.array(["a", "b"]), np.array(["a"]))
+
+    def test_confusion_matrix_rejects_length_mismatch(self) -> None:
+        with self.assertRaises(ValueError):
+            confusion_matrix(np.array(["a", "b"]), np.array(["a"]))
+
+
+class TestStratifiedKFold(unittest.TestCase):
+    def test_each_sample_in_validation_once(self) -> None:
+        y = np.array(["a"] * 10 + ["b"] * 10)
+        splits = stratified_kfold_indices(y, n_splits=5, random_state=42)
+        counts = np.zeros(len(y), dtype=int)
+        for _, validation_index in splits:
+            counts[validation_index] += 1
+        np.testing.assert_array_equal(counts, np.ones(len(y), dtype=int))
+
+    def test_fold_sizes_and_class_balance(self) -> None:
+        y = np.array(["a"] * 10 + ["b"] * 10)
+        splits = stratified_kfold_indices(y, n_splits=5, random_state=42)
+        for train_index, validation_index in splits:
+            self.assertEqual(len(train_index), 16)
+            self.assertEqual(len(validation_index), 4)
+            self.assertEqual(int(np.sum(y[validation_index] == "a")), 2)
+            self.assertEqual(int(np.sum(y[validation_index] == "b")), 2)
+
+    def test_folds_reproducible(self) -> None:
+        y = np.array(["a"] * 10 + ["b"] * 10)
+        splits_1 = stratified_kfold_indices(y, n_splits=5, random_state=42)
+        splits_2 = stratified_kfold_indices(y, n_splits=5, random_state=42)
+        for (train_1, validation_1), (train_2, validation_2) in zip(
+            splits_1, splits_2
+        ):
+            np.testing.assert_array_equal(train_1, train_2)
+            np.testing.assert_array_equal(validation_1, validation_2)
+
+    def test_too_many_splits_raises(self) -> None:
+        y = np.array(["a"] * 10 + ["b"] * 10)
+        with self.assertRaises(ValueError):
+            stratified_kfold_indices(y, n_splits=11, random_state=42)
+
+
+class TestCrossValidateKNN(unittest.TestCase):
+    def test_returns_all_k_values(self) -> None:
+        X = np.array([[0.0], [0.1], [0.2], [0.3], [10.0], [10.1], [10.2], [10.3]])
+        y = np.array(["a"] * 4 + ["b"] * 4)
+        results = cross_validate_knn(
+            X, y, k_values=[1, 3], n_splits=2, random_state=42
+        )
+
+        self.assertEqual(set(results), {1, 3})
+        for k in (1, 3):
+            self.assertEqual(len(results[k]["fold_accuracies"]), 2)
+            self.assertGreaterEqual(results[k]["mean_accuracy"], 0.0)
+            self.assertLessEqual(results[k]["mean_accuracy"], 1.0)
+
+    def test_k1_separates_simple_data(self) -> None:
+        X = np.array([[0.0], [0.1], [0.2], [0.3], [10.0], [10.1], [10.2], [10.3]])
+        y = np.array(["a"] * 4 + ["b"] * 4)
+        results = cross_validate_knn(
+            X, y, k_values=[1], n_splits=2, random_state=42
+        )
+        self.assertAlmostEqual(results[1]["mean_accuracy"], 1.0)
+
+    def test_invalid_k_raises(self) -> None:
+        X = np.array([[0.0], [1.0]])
+        y = np.array(["a", "b"])
+        with self.assertRaises(ValueError):
+            cross_validate_knn(X, y, k_values=[0], n_splits=2, random_state=42)
 
 
 if __name__ == "__main__":

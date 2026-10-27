@@ -1,0 +1,19 @@
+最优 k=5 测试集评估
+测试集样本数: 30
+准确率: 0.9667
+
+混淆矩阵（行=真实类别，列=预测类别）:
+真实\预测	setosa	versicolor	virginica
+setosa	10	0	0
+versicolor	0	10	0
+virginica	0	1	9
+
+分类报告:
+class        precision    recall        f1   support
+setosa          1.0000    1.0000    1.0000        10
+versicolor      0.9091    1.0000    0.9524        10
+virginica       1.0000    0.9000    0.9474        10
+
+macro avg       0.9697    0.9667    0.9666        30
+
+accuracy: 0.9667 (29/30)

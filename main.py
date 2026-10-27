@@ -2,7 +2,8 @@
 
 第 1 步完成环境自检；第 2 步加入数据读取、概况统计和简单可视化；
 第 3 步加入分层划分和 Z-score 标准化；第 4-5 步加入距离函数和最近邻搜索演示；
-第 6 步加入 KNN 分类器演示；第 7 步加入 KNN 回归演示。后续步骤会继续接入评估与报告。
+第 6 步加入 KNN 分类器演示；第 7 步加入 KNN 回归演示；
+第 8-9 步加入模型评估、交叉验证与 k 值选择。后续步骤会继续接入可视化与报告。
 """
 
 from __future__ import annotations
@@ -24,12 +25,15 @@ from knn import (
     KNNRegressor,
     RANDOM_SEED,
     StandardScaler,
+    accuracy_score,
+    classification_report,
+    confusion_matrix,
+    cross_validate_knn,
     euclidean_distance,
     majority_vote,
     manhattan_distance,
     nearest_neighbors,
     stratified_split_indices,
-    train_test_split_stratified,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -51,6 +55,8 @@ REGRESSION_FEATURE_COLUMNS = [
 REGRESSION_TARGET_COLUMN = "petal width (cm)"
 TARGET_COLUMN = "target_name"
 CLASS_ORDER = ["setosa", "versicolor", "virginica"]
+K_VALUES = list(range(1, 16))
+CV_FOLDS = 5
 
 
 def show_environment() -> None:
@@ -151,6 +157,20 @@ def plot_petal_scatter(df: pd.DataFrame, output_path: Path) -> None:
     plt.close(fig)
 
 
+def split_classification_data(
+    df: pd.DataFrame,
+    test_size: float = 0.2,
+    random_state: int = RANDOM_SEED,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """按类别分层返回原始（未标准化）的分类训练/测试数据。"""
+    X = df[FEATURE_COLUMNS].to_numpy(dtype=float)
+    y = df[TARGET_COLUMN].to_numpy()
+    train_index, test_index = stratified_split_indices(
+        y, test_size=test_size, random_state=random_state
+    )
+    return X[train_index], X[test_index], y[train_index], y[test_index]
+
+
 def prepare_data(
     df: pd.DataFrame,
     test_size: float = 0.2,
@@ -160,11 +180,8 @@ def prepare_data(
 
     返回：(X_train, X_test, y_train, y_test, scaler)
     """
-    X = df[FEATURE_COLUMNS].to_numpy(dtype=float)
-    y = df[TARGET_COLUMN].to_numpy()
-
-    X_train_raw, X_test_raw, y_train, y_test = train_test_split_stratified(
-        X, y, test_size=test_size, random_state=random_state
+    X_train_raw, X_test_raw, y_train, y_test = split_classification_data(
+        df, test_size=test_size, random_state=random_state
     )
 
     scaler = StandardScaler()
@@ -240,6 +257,85 @@ def summarize_preprocessing(
             f"std={X_test[:, index].std():.4f}"
         )
     return "\n".join(lines)
+
+
+def format_confusion_matrix(matrix: np.ndarray, labels: list[str]) -> str:
+    """把混淆矩阵格式化成可读文本。"""
+    lines = ["真实\\预测\t" + "\t".join(labels)]
+    for label, row in zip(labels, matrix):
+        lines.append(label + "\t" + "\t".join(str(int(value)) for value in row))
+    return "\n".join(lines)
+
+
+def evaluate_classifier(
+    model: KNNClassifier,
+    X_test: np.ndarray,
+    y_test: np.ndarray,
+    title: str,
+) -> tuple[str, float, np.ndarray]:
+    """在测试集上评估分类器，返回文本、准确率和预测结果。"""
+    predictions = model.predict(X_test)
+    accuracy = accuracy_score(y_test, predictions)
+    matrix = confusion_matrix(y_test, predictions, labels=CLASS_ORDER)
+    report = classification_report(y_test, predictions, labels=CLASS_ORDER)
+
+    lines = [
+        title,
+        f"测试集样本数: {len(y_test)}",
+        f"准确率: {accuracy:.4f}",
+        "",
+        "混淆矩阵（行=真实类别，列=预测类别）:",
+        format_confusion_matrix(matrix, CLASS_ORDER),
+        "",
+        "分类报告:",
+        report,
+    ]
+    return "\n".join(lines), accuracy, predictions
+
+
+def format_cv_results(
+    cv_results: dict[int, dict[str, float | list[float]]],
+    k_values: list[int],
+    best_k: int,
+) -> str:
+    """格式化交叉验证结果表。"""
+    lines = [
+        f"{CV_FOLDS} 折交叉验证结果（仅使用训练集，标准化在每折内部完成）:",
+        f"{'k':>4}{'平均准确率':>12}{'标准差':>10}",
+    ]
+    for k in k_values:
+        result = cv_results[k]
+        lines.append(
+            f"{k:>4}{result['mean_accuracy']:>12.4f}"
+            f"{result['std_accuracy']:>10.4f}"
+        )
+    lines.append("")
+    lines.append(f"最优 k: {best_k}（平均准确率最高；并列时取较小 k）")
+    return "\n".join(lines)
+
+
+def plot_k_accuracy_curve(
+    cv_results: dict[int, dict[str, float | list[float]]],
+    best_k: int,
+    output_path: Path,
+) -> None:
+    """画 k-平均准确率曲线，误差棒表示 5 折的标准差。"""
+    ks = sorted(cv_results)
+    means = [float(cv_results[k]["mean_accuracy"]) for k in ks]
+    stds = [float(cv_results[k]["std_accuracy"]) for k in ks]
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.errorbar(ks, means, yerr=stds, marker="o", capsize=3, label="mean ± std")
+    ax.axvline(best_k, color="red", linestyle="--", label=f"best k={best_k}")
+    ax.set_xlabel("k")
+    ax.set_ylabel("Mean CV accuracy")
+    ax.set_title("5-fold CV accuracy vs k")
+    ax.set_xticks(ks)
+    ax.grid(alpha=0.3)
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
 
 
 def demonstrate_distance_and_neighbors(
@@ -429,6 +525,63 @@ def main() -> None:
     regression_results.to_csv(regression_csv_path, index=False)
     print(f"\n回归演示记录已保存: {regression_demo_path}")
     print(f"回归预测表已保存: {regression_csv_path}")
+
+    # 第 8 步：用 k=5 做测试集基线评估。
+    k5_model = KNNClassifier(k=5, metric="euclidean").fit(X_train, y_train)
+    k5_text, k5_accuracy, k5_predictions = evaluate_classifier(
+        k5_model, X_test, y_test, "k=5 基线评估"
+    )
+    print("\n第 8 步 模型评估（k=5）:")
+    print(k5_text)
+
+    evaluation_k5_path = METRICS_DIR / "evaluation_k5.txt"
+    evaluation_k5_path.write_text(k5_text + "\n", encoding="utf-8")
+    print(f"\nk=5 评估记录已保存: {evaluation_k5_path}")
+
+    # 第 9 步：只在训练集上做分层 5 折交叉验证，选 k。
+    X_train_raw, _, y_train_raw, _ = split_classification_data(clean_df)
+    cv_results = cross_validate_knn(
+        X_train_raw,
+        y_train_raw,
+        k_values=K_VALUES,
+        n_splits=CV_FOLDS,
+        random_state=RANDOM_SEED,
+    )
+    best_k = max(K_VALUES, key=lambda k: (cv_results[k]["mean_accuracy"], -k))
+
+    cv_text = format_cv_results(cv_results, K_VALUES, best_k)
+    print("\n第 9 步 5 折交叉验证:")
+    print(cv_text)
+
+    k_selection_path = METRICS_DIR / "k_selection.txt"
+    k_selection_path.write_text(cv_text + "\n", encoding="utf-8")
+    k_curve_path = FIGURES_DIR / "k_accuracy_curve.png"
+    plot_k_accuracy_curve(cv_results, best_k, k_curve_path)
+    print(f"\nk 值选择记录已保存: {k_selection_path}")
+    print(f"k-准确率曲线已保存: {k_curve_path}")
+
+    # 用交叉验证选出的 k 在测试集上做最终评估。
+    final_model = KNNClassifier(k=best_k, metric="euclidean").fit(X_train, y_train)
+    final_text, final_accuracy, final_predictions = evaluate_classifier(
+        final_model, X_test, y_test, f"最优 k={best_k} 测试集评估"
+    )
+    print("\n最终测试集评估:")
+    print(final_text)
+
+    evaluation_best_path = METRICS_DIR / "evaluation_best_k.txt"
+    evaluation_best_path.write_text(final_text + "\n", encoding="utf-8")
+
+    evaluation_predictions = pd.DataFrame(
+        {
+            "true_label": y_test,
+            "pred_k5": k5_predictions,
+            "pred_best_k": final_predictions,
+        }
+    )
+    evaluation_predictions_path = METRICS_DIR / "evaluation_predictions.csv"
+    evaluation_predictions.to_csv(evaluation_predictions_path, index=False)
+    print(f"\n最优 k 评估记录已保存: {evaluation_best_path}")
+    print(f"测试集预测明细已保存: {evaluation_predictions_path}")
 
 
 if __name__ == "__main__":

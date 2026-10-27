@@ -35,14 +35,19 @@ knn_practice/
 ├── outputs/
 │   ├── figures/
 │   │   ├── feature_histograms.png
-│   │   └── petal_scatter.png
+│   │   ├── petal_scatter.png
+│   │   └── k_accuracy_curve.png
 │   └── metrics/
 │       ├── data_overview.txt
 │       ├── preprocessing_summary.txt
 │       ├── nearest_neighbors_demo.txt
 │       ├── classifier_demo.txt
 │       ├── regression_demo.txt
-│       └── regression_predictions.csv
+│       ├── regression_predictions.csv
+│       ├── evaluation_k5.txt
+│       ├── k_selection.txt
+│       ├── evaluation_best_k.txt
+│       └── evaluation_predictions.csv
 ├── knn.py              # KNN 核心实现
 ├── main.py             # 项目入口与实验流程
 ├── test_knn.py         # 单元测试
@@ -115,16 +120,47 @@ python -m unittest -v test_knn.py
 - 演示记录：`outputs/metrics/regression_demo.txt`
 - 预测明细：`outputs/metrics/regression_predictions.csv`
 
-## 9. 复现约定
+## 9. 模型评估
+
+- 手写 `accuracy_score()`、`confusion_matrix()`、`classification_report()`
+- 用 k=5 在测试集上评估：准确率 0.9667（29/30）
+- 混淆矩阵（行=真实，列=预测）：
+
+| 真实\预测 | setosa | versicolor | virginica |
+|---|---:|---:|---:|
+| setosa | 10 | 0 | 0 |
+| versicolor | 0 | 10 | 0 |
+| virginica | 0 | 1 | 9 |
+
+- 每类 precision / recall / F1：
+  - setosa：1.0000 / 1.0000 / 1.0000
+  - versicolor：0.9091 / 1.0000 / 0.9524
+  - virginica：1.0000 / 0.9000 / 0.9474
+- 唯一错误：1 个 virginica 被判成 versicolor，所以 virginica 的 recall 是 0.9，versicolor 的 precision 是 0.9091
+- 宏平均：precision 0.9697、recall 0.9667、F1 0.9666
+- 评估记录：`outputs/metrics/evaluation_k5.txt`
+
+## 10. k 值选择与交叉验证
+
+- 在训练集上做分层 5 折交叉验证，k=1 到 15
+- 每一折内部重新拟合标准化器，验证折只做 transform，避免信息泄漏
+- 平均准确率最高的是 k=5：0.9663，标准差 0.0169
+- k 曲线：`outputs/figures/k_accuracy_curve.png`
+- 用 k=5 在测试集上做最终评估：准确率 0.9667（29/30），与基线一致
+- 选择理由：k=5 的 5 折平均准确率最高，且标准差较小，说明不同折之间比较稳定
+- 记录：`outputs/metrics/k_selection.txt`、`outputs/metrics/evaluation_best_k.txt`、`outputs/metrics/evaluation_predictions.csv`
+- 验证：评估指标、分层折和交叉验证测试全部通过；当前项目共 46 个测试全部通过
+
+## 11. 复现约定
 
 - 全项目统一随机种子：`42`（定义在 `knn.py` 的 `RANDOM_SEED`）
 - 数据划分、交叉验证等所有随机操作都使用该种子
 - 标准化参数只由训练集计算，测试集只做变换，避免信息泄漏
 
-## 10. 运行方式
+## 12. 运行方式
 
 ```bash
 python main.py
 ```
 
-当前进度：第 7 步（KNN 回归）已完成。
+当前进度：第 9 步（模型评估与 k 值选择）已完成。

@@ -3,7 +3,7 @@
 本文件用于从零实现 KNN 的分类与回归，不调用 sklearn.neighbors。
 第 1 步定义全局随机种子；第 3 步加入分层划分和 Z-score 标准化；
 第 4-5 步加入欧氏/曼哈顿距离和最近邻搜索；第 6 步加入多数投票分类器；
-第 7 步加入 KNN 回归器。后续步骤会继续补充评估函数。
+第 7 步加入 KNN 回归器；第 8-9 步加入评估指标和交叉验证。
 """
 
 from __future__ import annotations
@@ -430,6 +430,226 @@ class KNNRegressor:
         return float(np.sum(weights * neighbor_values) / np.sum(weights))
 
 
+def accuracy_score(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    """计算分类准确率：预测正确的样本数 / 总样本数。"""
+    y_true = np.asarray(y_true)
+    y_pred = np.asarray(y_pred)
+
+    if y_true.ndim != 1 or y_pred.ndim != 1:
+        raise ValueError("y_true 和 y_pred 必须是一维数组")
+    if len(y_true) != len(y_pred):
+        raise ValueError(f"长度不一致：{len(y_true)} != {len(y_pred)}")
+    if len(y_true) == 0:
+        raise ValueError("y_true 和 y_pred 不能为空")
+
+    return float(np.mean(y_true == y_pred))
+
+
+def confusion_matrix(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    labels: np.ndarray | list | None = None,
+) -> np.ndarray:
+    """计算混淆矩阵：行是真实类别，列是预测类别。"""
+    y_true = np.asarray(y_true)
+    y_pred = np.asarray(y_pred)
+
+    if y_true.ndim != 1 or y_pred.ndim != 1:
+        raise ValueError("y_true 和 y_pred 必须是一维数组")
+    if len(y_true) != len(y_pred):
+        raise ValueError(f"长度不一致：{len(y_true)} != {len(y_pred)}")
+    if len(y_true) == 0:
+        raise ValueError("y_true 和 y_pred 不能为空")
+
+    if labels is None:
+        labels = np.unique(np.concatenate([y_true, y_pred]))
+    labels = list(labels)
+    if len(labels) == 0:
+        raise ValueError("labels 不能为空")
+
+    label_to_index = {label: index for index, label in enumerate(labels)}
+    for values in (y_true, y_pred):
+        for label in np.unique(values):
+            if label not in label_to_index:
+                raise ValueError(f"标签 {label!r} 不在 labels 中")
+
+    matrix = np.zeros((len(labels), len(labels)), dtype=int)
+    for true_label, pred_label in zip(y_true, y_pred):
+        matrix[label_to_index[true_label], label_to_index[pred_label]] += 1
+    return matrix
+
+
+def classification_report(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    labels: np.ndarray | list | None = None,
+) -> str:
+    """生成简化版分类报告：每类 precision、recall、F1、support，另加宏平均和准确率。"""
+    y_true = np.asarray(y_true)
+    y_pred = np.asarray(y_pred)
+
+    if y_true.ndim != 1 or y_pred.ndim != 1:
+        raise ValueError("y_true 和 y_pred 必须是一维数组")
+    if len(y_true) != len(y_pred):
+        raise ValueError(f"长度不一致：{len(y_true)} != {len(y_pred)}")
+    if len(y_true) == 0:
+        raise ValueError("y_true 和 y_pred 不能为空")
+
+    if labels is None:
+        labels = np.unique(np.concatenate([y_true, y_pred]))
+    labels = list(labels)
+
+    matrix = confusion_matrix(y_true, y_pred, labels=labels)
+    lines = [
+        f"{'class':<12}{'precision':>10}{'recall':>10}{'f1':>10}{'support':>10}"
+    ]
+
+    precisions = []
+    recalls = []
+    f1_scores = []
+    supports = []
+    for index, label in enumerate(labels):
+        true_positive = int(matrix[index, index])
+        predicted_positive = int(matrix[:, index].sum())
+        actual_positive = int(matrix[index, :].sum())
+
+        precision = true_positive / predicted_positive if predicted_positive else 0.0
+        recall = true_positive / actual_positive if actual_positive else 0.0
+        f1 = (
+            2 * precision * recall / (precision + recall)
+            if precision + recall > 0
+            else 0.0
+        )
+
+        precisions.append(precision)
+        recalls.append(recall)
+        f1_scores.append(f1)
+        supports.append(actual_positive)
+
+        lines.append(
+            f"{str(label):<12}{precision:>10.4f}{recall:>10.4f}"
+            f"{f1:>10.4f}{actual_positive:>10}"
+        )
+
+    total = len(y_true)
+    correct = int(np.trace(matrix))
+    lines.append("")
+    lines.append(
+        f"{'macro avg':<12}{np.mean(precisions):>10.4f}{np.mean(recalls):>10.4f}"
+        f"{np.mean(f1_scores):>10.4f}{sum(supports):>10}"
+    )
+    lines.append("")
+    lines.append(f"accuracy: {correct / total:.4f} ({correct}/{total})")
+    return "\n".join(lines)
+
+
+def stratified_kfold_indices(
+    y: np.ndarray,
+    n_splits: int = 5,
+    random_state: int = RANDOM_SEED,
+) -> list[tuple[np.ndarray, np.ndarray]]:
+    """按类别分层生成 k 折交叉验证索引。
+
+    每个类别内部先打乱，再平均切成 n_splits 份；每一折的验证集由
+    各分类的一份组成，保证每折类别比例接近原始数据。
+    """
+    y = np.asarray(y)
+    if y.ndim != 1:
+        raise ValueError("y 必须是一维数组")
+    if len(y) == 0:
+        raise ValueError("y 不能为空")
+    if not isinstance(n_splits, (int, np.integer)) or n_splits < 2:
+        raise ValueError("n_splits 必须是大于等于 2 的整数")
+    if n_splits > len(y):
+        raise ValueError("n_splits 不能大于样本数")
+
+    rng = np.random.default_rng(random_state)
+    class_folds: list[list[np.ndarray]] = []
+    for class_name in np.unique(y):
+        class_indices = np.flatnonzero(y == class_name)
+        if len(class_indices) < n_splits:
+            raise ValueError(
+                f"类别 {class_name!r} 只有 {len(class_indices)} 个样本，"
+                f"少于 n_splits={n_splits}"
+            )
+        rng.shuffle(class_indices)
+        class_folds.append(np.array_split(class_indices, n_splits))
+
+    splits = []
+    for fold_index in range(n_splits):
+        validation_parts = [folds[fold_index] for folds in class_folds]
+        validation_index = np.concatenate(validation_parts)
+
+        train_parts = []
+        for folds in class_folds:
+            for index, fold in enumerate(folds):
+                if index != fold_index:
+                    train_parts.append(fold)
+        train_index = np.concatenate(train_parts)
+
+        rng.shuffle(train_index)
+        rng.shuffle(validation_index)
+        splits.append((train_index, validation_index))
+    return splits
+
+
+def cross_validate_knn(
+    X: np.ndarray,
+    y: np.ndarray,
+    k_values: list[int],
+    n_splits: int = 5,
+    metric: str = "euclidean",
+    random_state: int = RANDOM_SEED,
+) -> dict[int, dict[str, float | list[float]]]:
+    """对多个 k 做分层 k 折交叉验证，返回每个 k 的平均准确率和标准差。
+
+    每一折内部重新拟合标准化器：只用该折的训练部分计算均值和标准差，
+    验证部分只做 transform，避免验证折信息泄漏。
+    """
+    X = np.asarray(X, dtype=float)
+    y = np.asarray(y)
+
+    if X.ndim != 2:
+        raise ValueError("X 必须是二维数组")
+    if y.ndim != 1:
+        raise ValueError("y 必须是一维数组")
+    if len(X) != len(y):
+        raise ValueError(f"X 和 y 的样本数不一致：{len(X)} != {len(y)}")
+    if len(X) == 0:
+        raise ValueError("数据不能为空")
+
+    k_values = [int(k) for k in k_values]
+    if not k_values:
+        raise ValueError("k_values 不能为空")
+    if any(k <= 0 for k in k_values):
+        raise ValueError("k 必须是正整数")
+
+    splits = stratified_kfold_indices(y, n_splits=n_splits, random_state=random_state)
+    results: dict[int, dict[str, float | list[float]]] = {}
+
+    for k in k_values:
+        fold_accuracies = []
+        for train_index, validation_index in splits:
+            scaler = StandardScaler()
+            X_fold_train = scaler.fit_transform(X[train_index])
+            X_fold_validation = scaler.transform(X[validation_index])
+
+            model = KNNClassifier(k=k, metric=metric).fit(
+                X_fold_train, y[train_index]
+            )
+            predictions = model.predict(X_fold_validation)
+            fold_accuracies.append(
+                accuracy_score(y[validation_index], predictions)
+            )
+
+        results[k] = {
+            "mean_accuracy": float(np.mean(fold_accuracies)),
+            "std_accuracy": float(np.std(fold_accuracies)),
+            "fold_accuracies": [float(value) for value in fold_accuracies],
+        }
+    return results
+
+
 __all__ = [
     "RANDOM_SEED",
     "StandardScaler",
@@ -442,4 +662,9 @@ __all__ = [
     "majority_vote",
     "KNNClassifier",
     "KNNRegressor",
+    "accuracy_score",
+    "confusion_matrix",
+    "classification_report",
+    "stratified_kfold_indices",
+    "cross_validate_knn",
 ]
