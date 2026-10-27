@@ -1,0 +1,25 @@
+训练集样本数: 119
+测试集样本数: 30
+训练集类别分布:
+  setosa: 40
+  versicolor: 40
+  virginica: 39
+测试集类别分布:
+  setosa: 10
+  versicolor: 10
+  virginica: 10
+标准化参数（仅由训练集计算）:
+  sepal length (cm): mean=5.8345, std=0.8300
+  sepal width (cm): mean=3.0697, std=0.4413
+  petal length (cm): mean=3.7378, std=1.7648
+  petal width (cm): mean=1.1916, std=0.7610
+标准化后训练集统计（应接近 mean=0, std=1）:
+  sepal length (cm): mean=0.0000, std=1.0000
+  sepal width (cm): mean=0.0000, std=1.0000
+  petal length (cm): mean=0.0000, std=1.0000
+  petal width (cm): mean=-0.0000, std=1.0000
+标准化后测试集统计（不应恰好为 mean=0, std=1）:
+  sepal length (cm): mean=0.0549, std=0.9868
+  sepal width (cm): mean=-0.1127, std=0.9204
+  petal length (cm): mean=0.0315, std=0.9912
+  petal width (cm): mean=0.0198, std=0.9938

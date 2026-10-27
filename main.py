@@ -1,7 +1,7 @@
 """KNN 课堂实践项目入口。
 
-第 1 步完成环境自检；第 2 步加入数据读取、数据概况统计和简单可视化。
-后续步骤会继续接入预处理、KNN 实现、评估与报告。
+第 1 步完成环境自检；第 2 步加入数据读取、概况统计和简单可视化；
+第 3 步加入分层划分和 Z-score 标准化。后续步骤会继续接入 KNN 实现、评估与报告。
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 import sklearn
 
-from knn import RANDOM_SEED
+from knn import RANDOM_SEED, StandardScaler, train_test_split_stratified
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 DATA_PATH = PROJECT_ROOT / "data" / "iris_dataset.csv"
@@ -133,6 +133,71 @@ def plot_petal_scatter(df: pd.DataFrame, output_path: Path) -> None:
     plt.close(fig)
 
 
+def prepare_data(
+    df: pd.DataFrame,
+    test_size: float = 0.2,
+    random_state: int = RANDOM_SEED,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, StandardScaler]:
+    """分层划分训练/测试集，并只用训练集拟合标准化器。
+
+    返回：(X_train, X_test, y_train, y_test, scaler)
+    """
+    X = df[FEATURE_COLUMNS].to_numpy(dtype=float)
+    y = df[TARGET_COLUMN].to_numpy()
+
+    X_train_raw, X_test_raw, y_train, y_test = train_test_split_stratified(
+        X, y, test_size=test_size, random_state=random_state
+    )
+
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train_raw)
+    X_test = scaler.transform(X_test_raw)
+    return X_train, X_test, y_train, y_test, scaler
+
+
+def summarize_preprocessing(
+    X_train: np.ndarray,
+    X_test: np.ndarray,
+    y_train: np.ndarray,
+    y_test: np.ndarray,
+    scaler: StandardScaler,
+) -> str:
+    """生成预处理记录：划分规模、类别分布、标准化参数和变换后统计。"""
+    if scaler.mean_ is None or scaler.std_ is None:
+        raise RuntimeError("标准化器尚未拟合，无法生成预处理记录")
+
+    lines = [
+        f"训练集样本数: {len(y_train)}",
+        f"测试集样本数: {len(y_test)}",
+        "训练集类别分布:",
+    ]
+    for class_name in CLASS_ORDER:
+        lines.append(f"  {class_name}: {int(np.sum(y_train == class_name))}")
+
+    lines.append("测试集类别分布:")
+    for class_name in CLASS_ORDER:
+        lines.append(f"  {class_name}: {int(np.sum(y_test == class_name))}")
+
+    lines.append("标准化参数（仅由训练集计算）:")
+    for feature, mean, std in zip(FEATURE_COLUMNS, scaler.mean_, scaler.std_):
+        lines.append(f"  {feature}: mean={mean:.4f}, std={std:.4f}")
+
+    lines.append("标准化后训练集统计（应接近 mean=0, std=1）:")
+    for index, feature in enumerate(FEATURE_COLUMNS):
+        lines.append(
+            f"  {feature}: mean={X_train[:, index].mean():.4f}, "
+            f"std={X_train[:, index].std():.4f}"
+        )
+
+    lines.append("标准化后测试集统计（不应恰好为 mean=0, std=1）:")
+    for index, feature in enumerate(FEATURE_COLUMNS):
+        lines.append(
+            f"  {feature}: mean={X_test[:, index].mean():.4f}, "
+            f"std={X_test[:, index].std():.4f}"
+        )
+    return "\n".join(lines)
+
+
 def main() -> None:
     show_environment()
 
@@ -175,6 +240,17 @@ def main() -> None:
     print(f"\n数据概况已保存: {overview_path}")
     print(f"特征分布图已保存: {histogram_path}")
     print(f"花瓣散点图已保存: {scatter_path}")
+
+    X_train, X_test, y_train, y_test, scaler = prepare_data(clean_df)
+    preprocessing_summary = summarize_preprocessing(
+        X_train, X_test, y_train, y_test, scaler
+    )
+    print("\n预处理结果:")
+    print(preprocessing_summary)
+
+    preprocessing_path = METRICS_DIR / "preprocessing_summary.txt"
+    preprocessing_path.write_text(preprocessing_summary + "\n", encoding="utf-8")
+    print(f"\n预处理记录已保存: {preprocessing_path}")
 
 
 if __name__ == "__main__":

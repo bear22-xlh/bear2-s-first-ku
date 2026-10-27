@@ -37,7 +37,8 @@ knn_practice/
 │   │   ├── feature_histograms.png
 │   │   └── petal_scatter.png
 │   └── metrics/
-│       └── data_overview.txt
+│       ├── data_overview.txt
+│       └── preprocessing_summary.txt
 ├── knn.py              # KNN 核心实现
 ├── main.py             # 项目入口与实验流程
 ├── requirements.txt    # 依赖版本
@@ -59,16 +60,26 @@ knn_practice/
 - 花瓣长度和花瓣宽度对类别区分度最高，setosa 可以仅凭花瓣特征与另外两类分开。
 - versicolor 和 virginica 在花瓣特征上有少量重叠，是后续分类的主要误差来源。
 
-## 5. 复现约定
+## 5. 数据预处理
+
+- 分层划分：80% 训练、20% 测试，随机种子 42
+- 训练集 119 条：setosa 40、versicolor 40、virginica 39
+- 测试集 30 条：setosa 10、versicolor 10、virginica 10
+- 标准化：手写 `StandardScaler`，只用训练集计算每个特征的均值和标准差
+- 测试集只调用 `transform()`，不参与参数计算，避免信息泄漏
+- 验证：两次运行的划分完全一致；标准化结果与 sklearn `StandardScaler` 一致
+- 预处理记录：`outputs/metrics/preprocessing_summary.txt`
+
+## 6. 复现约定
 
 - 全项目统一随机种子：`42`（定义在 `knn.py` 的 `RANDOM_SEED`）
 - 数据划分、交叉验证等所有随机操作都使用该种子
 - 标准化参数只由训练集计算，测试集只做变换，避免信息泄漏
 
-## 6. 运行方式
+## 7. 运行方式
 
 ```bash
 python main.py
 ```
 
-当前进度：第 2 步（数据读取与探索）已完成。
+当前进度：第 3 步（数据预处理）已完成。
