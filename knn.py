@@ -2,8 +2,8 @@
 
 本文件用于从零实现 KNN 的分类与回归，不调用 sklearn.neighbors。
 第 1 步定义全局随机种子；第 3 步加入分层划分和 Z-score 标准化；
-第 4-5 步加入欧氏/曼哈顿距离和最近邻搜索。
-后续步骤会继续补充分类器、回归器和评估函数。
+第 4-5 步加入欧氏/曼哈顿距离和最近邻搜索；第 6 步加入多数投票分类器。
+后续步骤会继续补充回归器和评估函数。
 """
 
 from __future__ import annotations
@@ -222,6 +222,111 @@ def nearest_neighbors(
     return neighbor_indices, neighbor_distances
 
 
+def majority_vote(labels: np.ndarray, distances: np.ndarray | None = None) -> object:
+    """对邻居标签做多数投票，返回票数最多的类别。
+
+    平票处理：如果多个类别票数相同，选择距离最近的那个邻居所属的类别。
+    labels 和 distances 应当已经按距离升序排列（nearest_neighbors 的返回值满足）。
+    """
+    labels = np.asarray(labels)
+    if labels.ndim != 1 or labels.size == 0:
+        raise ValueError("labels 必须是非空一维数组")
+
+    if distances is not None:
+        distances = np.asarray(distances, dtype=float)
+        if distances.shape != labels.shape:
+            raise ValueError(
+                f"distances 必须与 labels 形状一致：{distances.shape} != {labels.shape}"
+            )
+
+    counts: dict[object, int] = {}
+    for label in labels:
+        counts[label] = counts.get(label, 0) + 1
+
+    max_count = max(counts.values())
+    tied_labels = [label for label, count in counts.items() if count == max_count]
+    if len(tied_labels) == 1:
+        return tied_labels[0]
+
+    if distances is None:
+        raise ValueError("出现平票时必须提供 distances，按最近邻距离打破平票")
+
+    best_label = tied_labels[0]
+    best_distance = float("inf")
+    for label, distance in zip(labels, distances):
+        if label in tied_labels and distance < best_distance:
+            best_label = label
+            best_distance = distance
+    return best_label
+
+
+class KNNClassifier:
+    """K 近邻分类器：多数投票 + 最近邻距离打破平票。"""
+
+    def __init__(self, k: int = 5, metric: str = "euclidean") -> None:
+        if not isinstance(k, (int, np.integer)) or k <= 0:
+            raise ValueError("k 必须是正整数")
+        if metric not in {"euclidean", "manhattan"}:
+            raise ValueError("metric 必须是 'euclidean' 或 'manhattan'")
+
+        self.k = int(k)
+        self.metric = metric
+        self.X_train_: np.ndarray | None = None
+        self.y_train_: np.ndarray | None = None
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> "KNNClassifier":
+        """保存训练集；KNN 没有需要迭代学习的参数。"""
+        X = np.asarray(X, dtype=float)
+        y = np.asarray(y)
+
+        if X.ndim != 2:
+            raise ValueError("X 必须是二维数组，形状为 (样本数, 特征数)")
+        if y.ndim != 1:
+            raise ValueError("y 必须是一维数组")
+        if len(X) != len(y):
+            raise ValueError(f"X 和 y 的样本数不一致：{len(X)} != {len(y)}")
+        if len(X) == 0:
+            raise ValueError("训练集不能为空")
+        if X.shape[1] == 0:
+            raise ValueError("训练集特征数不能为 0")
+        if self.k > len(X):
+            raise ValueError(
+                f"k 不能大于训练样本数：k={self.k}, 训练样本数={len(X)}"
+            )
+
+        self.X_train_ = X
+        self.y_train_ = y
+        return self
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        """对每个查询样本找 k 个邻居，投票得到预测类别。"""
+        if self.X_train_ is None or self.y_train_ is None:
+            raise RuntimeError("请先调用 fit() 训练模型")
+
+        X = np.asarray(X, dtype=float)
+        if X.ndim == 1:
+            X = X.reshape(1, -1)
+        if X.ndim != 2:
+            raise ValueError("X 必须是一维或二维数组")
+        if X.shape[0] == 0:
+            raise ValueError("预测数据不能为空")
+        if X.shape[1] != self.X_train_.shape[1]:
+            raise ValueError(
+                f"特征数不一致：训练集有 {self.X_train_.shape[1]} 个特征，"
+                f"预测数据有 {X.shape[1]} 个特征"
+            )
+
+        neighbor_indices, neighbor_distances = nearest_neighbors(
+            self.X_train_, X, k=self.k, metric=self.metric
+        )
+
+        predictions = []
+        for indices, distances in zip(neighbor_indices, neighbor_distances):
+            neighbor_labels = self.y_train_[indices]
+            predictions.append(majority_vote(neighbor_labels, distances))
+        return np.asarray(predictions)
+
+
 __all__ = [
     "RANDOM_SEED",
     "StandardScaler",
@@ -230,4 +335,6 @@ __all__ = [
     "manhattan_distance",
     "pairwise_distances",
     "nearest_neighbors",
+    "majority_vote",
+    "KNNClassifier",
 ]

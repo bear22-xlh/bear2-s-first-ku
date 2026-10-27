@@ -1,8 +1,8 @@
 """KNN 课堂实践项目入口。
 
 第 1 步完成环境自检；第 2 步加入数据读取、概况统计和简单可视化；
-第 3 步加入分层划分和 Z-score 标准化；第 4-5 步加入距离函数和最近邻搜索演示。
-后续步骤会继续接入 KNN 分类、回归、评估与报告。
+第 3 步加入分层划分和 Z-score 标准化；第 4-5 步加入距离函数和最近邻搜索演示；
+第 6 步加入 KNN 分类器演示。后续步骤会继续接入回归、评估与报告。
 """
 
 from __future__ import annotations
@@ -20,9 +20,11 @@ import pandas as pd
 import sklearn
 
 from knn import (
+    KNNClassifier,
     RANDOM_SEED,
     StandardScaler,
     euclidean_distance,
+    majority_vote,
     manhattan_distance,
     nearest_neighbors,
     train_test_split_stratified,
@@ -235,6 +237,38 @@ def demonstrate_distance_and_neighbors(
     return "\n".join(lines)
 
 
+def demonstrate_classifier(
+    X_train: np.ndarray,
+    X_test: np.ndarray,
+    y_train: np.ndarray,
+    y_test: np.ndarray,
+    k: int = 5,
+) -> str:
+    """训练 KNNClassifier，并展示前 10 个测试样本的预测和一次投票过程。"""
+    classifier = KNNClassifier(k=k, metric="euclidean").fit(X_train, y_train)
+    predictions = classifier.predict(X_test[:10])
+
+    query = X_test[0]
+    neighbor_indices, neighbor_distances = nearest_neighbors(X_train, query, k=k)
+    neighbor_labels = y_train[neighbor_indices[0]]
+    vote = majority_vote(neighbor_labels, neighbor_distances[0])
+    correct = int(np.sum(predictions == y_test[:10]))
+
+    lines = [
+        f"KNNClassifier(k={k}) 前 10 个测试样本:",
+        f"  真实类别: {y_test[:10].tolist()}",
+        f"  预测类别: {predictions.tolist()}",
+        f"  前 10 个中预测正确: {correct}/10",
+        "",
+        "第 1 个测试样本的投票过程:",
+        f"  邻居索引: {neighbor_indices[0].tolist()}",
+        f"  邻居距离: {np.round(neighbor_distances[0], 4).tolist()}",
+        f"  邻居类别: {neighbor_labels.tolist()}",
+        f"  投票结果: {vote}",
+    ]
+    return "\n".join(lines)
+
+
 def main() -> None:
     show_environment()
 
@@ -298,6 +332,16 @@ def main() -> None:
     neighbor_demo_path = METRICS_DIR / "nearest_neighbors_demo.txt"
     neighbor_demo_path.write_text(neighbor_demo + "\n", encoding="utf-8")
     print(f"\n最近邻演示记录已保存: {neighbor_demo_path}")
+
+    classifier_demo = demonstrate_classifier(
+        X_train, X_test, y_train, y_test, k=5
+    )
+    print("\nKNN 分类器演示:")
+    print(classifier_demo)
+
+    classifier_demo_path = METRICS_DIR / "classifier_demo.txt"
+    classifier_demo_path.write_text(classifier_demo + "\n", encoding="utf-8")
+    print(f"\n分类器演示记录已保存: {classifier_demo_path}")
 
 
 if __name__ == "__main__":

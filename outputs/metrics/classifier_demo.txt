@@ -1,0 +1,10 @@
+KNNClassifier(k=5) 前 10 个测试样本:
+  真实类别: ['versicolor', 'virginica', 'versicolor', 'setosa', 'virginica', 'virginica', 'setosa', 'setosa', 'virginica', 'virginica']
+  预测类别: ['versicolor', 'virginica', 'versicolor', 'setosa', 'virginica', 'virginica', 'setosa', 'setosa', 'virginica', 'virginica']
+  前 10 个中预测正确: 10/10
+
+第 1 个测试样本的投票过程:
+  邻居索引: [89, 109, 57, 31, 30]
+  邻居距离: [0.2409, 0.2949, 0.3604, 0.4048, 0.4464]
+  邻居类别: ['versicolor', 'versicolor', 'versicolor', 'versicolor', 'versicolor']
+  投票结果: versicolor
