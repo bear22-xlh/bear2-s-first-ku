@@ -2,8 +2,8 @@
 
 本文件用于从零实现 KNN 的分类与回归，不调用 sklearn.neighbors。
 第 1 步定义全局随机种子；第 3 步加入分层划分和 Z-score 标准化；
-第 4-5 步加入欧氏/曼哈顿距离和最近邻搜索；第 6 步加入多数投票分类器。
-后续步骤会继续补充回归器和评估函数。
+第 4-5 步加入欧氏/曼哈顿距离和最近邻搜索；第 6 步加入多数投票分类器；
+第 7 步加入 KNN 回归器。后续步骤会继续补充评估函数。
 """
 
 from __future__ import annotations
@@ -57,28 +57,20 @@ class StandardScaler:
         return self.fit(X).transform(X)
 
 
-def train_test_split_stratified(
-    X: np.ndarray,
+def stratified_split_indices(
     y: np.ndarray,
     test_size: float = 0.2,
     random_state: int = RANDOM_SEED,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """按类别分层划分训练集和测试集。
+) -> tuple[np.ndarray, np.ndarray]:
+    """按类别分层，返回训练集和测试集的索引。
 
-    每个类别分别按 test_size 比例抽取测试样本，保证训练集和测试集的
-    类别分布接近原始数据。随机数生成器使用固定种子，划分结果可复现。
-
-    返回：(X_train, X_test, y_train, y_test)
+    分类和回归可以共用同一组索引，保证两者的训练/测试样本完全一致。
     """
-    X = np.asarray(X)
     y = np.asarray(y)
-
-    if X.ndim != 2:
-        raise ValueError("X 必须是二维数组，形状为 (样本数, 特征数)")
     if y.ndim != 1:
         raise ValueError("y 必须是一维数组")
-    if len(X) != len(y):
-        raise ValueError(f"X 和 y 的样本数不一致：{len(X)} != {len(y)}")
+    if len(y) == 0:
+        raise ValueError("y 不能为空")
     if not 0 < test_size < 1:
         raise ValueError("test_size 必须在 0 和 1 之间")
 
@@ -105,7 +97,33 @@ def train_test_split_stratified(
     # 再打乱一次，避免训练集和测试集内部按类别聚集。
     rng.shuffle(train_index)
     rng.shuffle(test_index)
+    return train_index, test_index
 
+
+def train_test_split_stratified(
+    X: np.ndarray,
+    y: np.ndarray,
+    test_size: float = 0.2,
+    random_state: int = RANDOM_SEED,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """按类别分层划分训练集和测试集。
+
+    每个类别分别按 test_size 比例抽取测试样本，保证训练集和测试集的
+    类别分布接近原始数据。随机数生成器使用固定种子，划分结果可复现。
+
+    返回：(X_train, X_test, y_train, y_test)
+    """
+    X = np.asarray(X)
+    y = np.asarray(y)
+
+    if X.ndim != 2:
+        raise ValueError("X 必须是二维数组，形状为 (样本数, 特征数)")
+    if y.ndim != 1:
+        raise ValueError("y 必须是一维数组")
+    if len(X) != len(y):
+        raise ValueError(f"X 和 y 的样本数不一致：{len(X)} != {len(y)}")
+
+    train_index, test_index = stratified_split_indices(y, test_size, random_state)
     return X[train_index], X[test_index], y[train_index], y[test_index]
 
 
@@ -327,9 +345,95 @@ class KNNClassifier:
         return np.asarray(predictions)
 
 
+class KNNRegressor:
+    """K 近邻回归器：邻居均值或距离加权平均。"""
+
+    def __init__(
+        self,
+        k: int = 5,
+        metric: str = "euclidean",
+        weights: str = "uniform",
+    ) -> None:
+        if not isinstance(k, (int, np.integer)) or k <= 0:
+            raise ValueError("k 必须是正整数")
+        if metric not in {"euclidean", "manhattan"}:
+            raise ValueError("metric 必须是 'euclidean' 或 'manhattan'")
+        if weights not in {"uniform", "distance"}:
+            raise ValueError("weights 必须是 'uniform' 或 'distance'")
+
+        self.k = int(k)
+        self.metric = metric
+        self.weights = weights
+        self.X_train_: np.ndarray | None = None
+        self.y_train_: np.ndarray | None = None
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> "KNNRegressor":
+        """保存训练集；y 必须是连续数值。"""
+        X = np.asarray(X, dtype=float)
+        y = np.asarray(y, dtype=float)
+
+        if X.ndim != 2:
+            raise ValueError("X 必须是二维数组，形状为 (样本数, 特征数)")
+        if y.ndim != 1:
+            raise ValueError("y 必须是一维数组")
+        if len(X) != len(y):
+            raise ValueError(f"X 和 y 的样本数不一致：{len(X)} != {len(y)}")
+        if len(X) == 0:
+            raise ValueError("训练集不能为空")
+        if X.shape[1] == 0:
+            raise ValueError("训练集特征数不能为 0")
+        if self.k > len(X):
+            raise ValueError(
+                f"k 不能大于训练样本数：k={self.k}, 训练样本数={len(X)}"
+            )
+
+        self.X_train_ = X
+        self.y_train_ = y
+        return self
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        """对每个查询样本找 k 个邻居，再聚合邻居的目标值。"""
+        if self.X_train_ is None or self.y_train_ is None:
+            raise RuntimeError("请先调用 fit() 训练模型")
+
+        X = np.asarray(X, dtype=float)
+        if X.ndim == 1:
+            X = X.reshape(1, -1)
+        if X.ndim != 2:
+            raise ValueError("X 必须是一维或二维数组")
+        if X.shape[0] == 0:
+            raise ValueError("预测数据不能为空")
+        if X.shape[1] != self.X_train_.shape[1]:
+            raise ValueError(
+                f"特征数不一致：训练集有 {self.X_train_.shape[1]} 个特征，"
+                f"预测数据有 {X.shape[1]} 个特征"
+            )
+
+        neighbor_indices, neighbor_distances = nearest_neighbors(
+            self.X_train_, X, k=self.k, metric=self.metric
+        )
+
+        predictions = []
+        for indices, distances in zip(neighbor_indices, neighbor_distances):
+            predictions.append(
+                self._aggregate(self.y_train_[indices], distances)
+            )
+        return np.asarray(predictions, dtype=float)
+
+    def _aggregate(self, neighbor_values: np.ndarray, distances: np.ndarray) -> float:
+        """把 k 个邻居的目标值聚合成一个预测值。"""
+        if self.weights == "uniform":
+            return float(np.mean(neighbor_values))
+
+        # 距离越小权重越大；加 1e-12 防止距离为 0 时除零。
+        weights = 1.0 / (distances + 1e-12)
+        return float(np.sum(weights * neighbor_values) / np.sum(weights))
+
+
 __all__ = [
     "RANDOM_SEED",
     "StandardScaler",
+    "stratified_split_indices",
     "train_test_split_stratified",
     "euclidean_distance",
     "manhattan_distance",
@@ -337,4 +441,5 @@ __all__ = [
     "nearest_neighbors",
     "majority_vote",
     "KNNClassifier",
+    "KNNRegressor",
 ]

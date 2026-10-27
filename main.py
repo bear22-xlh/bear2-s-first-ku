@@ -2,7 +2,7 @@
 
 第 1 步完成环境自检；第 2 步加入数据读取、概况统计和简单可视化；
 第 3 步加入分层划分和 Z-score 标准化；第 4-5 步加入距离函数和最近邻搜索演示；
-第 6 步加入 KNN 分类器演示。后续步骤会继续接入回归、评估与报告。
+第 6 步加入 KNN 分类器演示；第 7 步加入 KNN 回归演示。后续步骤会继续接入评估与报告。
 """
 
 from __future__ import annotations
@@ -21,12 +21,14 @@ import sklearn
 
 from knn import (
     KNNClassifier,
+    KNNRegressor,
     RANDOM_SEED,
     StandardScaler,
     euclidean_distance,
     majority_vote,
     manhattan_distance,
     nearest_neighbors,
+    stratified_split_indices,
     train_test_split_stratified,
 )
 
@@ -41,6 +43,12 @@ FEATURE_COLUMNS = [
     "petal length (cm)",
     "petal width (cm)",
 ]
+REGRESSION_FEATURE_COLUMNS = [
+    "sepal length (cm)",
+    "sepal width (cm)",
+    "petal length (cm)",
+]
+REGRESSION_TARGET_COLUMN = "petal width (cm)"
 TARGET_COLUMN = "target_name"
 CLASS_ORDER = ["setosa", "versicolor", "virginica"]
 
@@ -165,6 +173,32 @@ def prepare_data(
     return X_train, X_test, y_train, y_test, scaler
 
 
+def prepare_regression_data(
+    df: pd.DataFrame,
+    test_size: float = 0.2,
+    random_state: int = RANDOM_SEED,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, StandardScaler]:
+    """为回归准备数据：预测花瓣宽度，其他 3 个特征作为输入。
+
+    使用与分类相同的分层索引，保证两个任务的训练/测试样本一致。
+    """
+    X = df[REGRESSION_FEATURE_COLUMNS].to_numpy(dtype=float)
+    y = df[REGRESSION_TARGET_COLUMN].to_numpy(dtype=float)
+    class_labels = df[TARGET_COLUMN].to_numpy()
+
+    train_index, test_index = stratified_split_indices(
+        class_labels, test_size=test_size, random_state=random_state
+    )
+
+    X_train_raw, X_test_raw = X[train_index], X[test_index]
+    y_train, y_test = y[train_index], y[test_index]
+
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train_raw)
+    X_test = scaler.transform(X_test_raw)
+    return X_train, X_test, y_train, y_test, scaler
+
+
 def summarize_preprocessing(
     X_train: np.ndarray,
     X_test: np.ndarray,
@@ -269,6 +303,45 @@ def demonstrate_classifier(
     return "\n".join(lines)
 
 
+def demonstrate_regression(
+    X_train: np.ndarray,
+    X_test: np.ndarray,
+    y_train: np.ndarray,
+    y_test: np.ndarray,
+    k: int = 5,
+) -> tuple[str, pd.DataFrame]:
+    """训练两种 KNN 回归器，返回演示文字和预测结果表。"""
+    uniform = KNNRegressor(k=k, weights="uniform").fit(X_train, y_train)
+    weighted = KNNRegressor(k=k, weights="distance").fit(X_train, y_train)
+
+    pred_uniform = uniform.predict(X_test)
+    pred_weighted = weighted.predict(X_test)
+
+    mae_uniform = float(np.mean(np.abs(pred_uniform - y_test)))
+    mae_weighted = float(np.mean(np.abs(pred_weighted - y_test)))
+    rmse_uniform = float(np.sqrt(np.mean((pred_uniform - y_test) ** 2)))
+    rmse_weighted = float(np.sqrt(np.mean((pred_weighted - y_test) ** 2)))
+
+    lines = [
+        "KNN 回归演示（输入：花萼长度/宽度、花瓣长度；目标：花瓣宽度，单位 cm）:",
+        f"  测试集样本数: {len(y_test)}",
+        f"  前 10 个真实值: {np.round(y_test[:10], 4).tolist()}",
+        f"  前 10 个均值预测: {np.round(pred_uniform[:10], 4).tolist()}",
+        f"  前 10 个距离加权预测: {np.round(pred_weighted[:10], 4).tolist()}",
+        f"  均值预测 MAE: {mae_uniform:.4f} cm, RMSE: {rmse_uniform:.4f} cm",
+        f"  距离加权 MAE: {mae_weighted:.4f} cm, RMSE: {rmse_weighted:.4f} cm",
+    ]
+
+    results = pd.DataFrame(
+        {
+            "true_petal_width": y_test,
+            "pred_uniform": pred_uniform,
+            "pred_distance_weighted": pred_weighted,
+        }
+    )
+    return "\n".join(lines), results
+
+
 def main() -> None:
     show_environment()
 
@@ -342,6 +415,20 @@ def main() -> None:
     classifier_demo_path = METRICS_DIR / "classifier_demo.txt"
     classifier_demo_path.write_text(classifier_demo + "\n", encoding="utf-8")
     print(f"\n分类器演示记录已保存: {classifier_demo_path}")
+
+    Xr_train, Xr_test, yr_train, yr_test, _ = prepare_regression_data(clean_df)
+    regression_demo, regression_results = demonstrate_regression(
+        Xr_train, Xr_test, yr_train, yr_test, k=5
+    )
+    print("\nKNN 回归演示:")
+    print(regression_demo)
+
+    regression_demo_path = METRICS_DIR / "regression_demo.txt"
+    regression_demo_path.write_text(regression_demo + "\n", encoding="utf-8")
+    regression_csv_path = METRICS_DIR / "regression_predictions.csv"
+    regression_results.to_csv(regression_csv_path, index=False)
+    print(f"\n回归演示记录已保存: {regression_demo_path}")
+    print(f"回归预测表已保存: {regression_csv_path}")
 
 
 if __name__ == "__main__":

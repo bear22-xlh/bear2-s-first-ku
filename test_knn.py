@@ -8,11 +8,13 @@ import numpy as np
 
 from knn import (
     KNNClassifier,
+    KNNRegressor,
     euclidean_distance,
     majority_vote,
     manhattan_distance,
     nearest_neighbors,
     pairwise_distances,
+    stratified_split_indices,
 )
 
 
@@ -167,6 +169,70 @@ class TestKNNClassifier(unittest.TestCase):
         )
         with self.assertRaises(ValueError):
             classifier.predict(np.empty((0, 2)))
+
+
+class TestStratifiedSplitIndices(unittest.TestCase):
+    def test_split_indices_reproducible(self) -> None:
+        y = np.array(["a"] * 10 + ["b"] * 10)
+        train_1, test_1 = stratified_split_indices(y, test_size=0.2, random_state=42)
+        train_2, test_2 = stratified_split_indices(y, test_size=0.2, random_state=42)
+
+        np.testing.assert_array_equal(train_1, train_2)
+        np.testing.assert_array_equal(test_1, test_2)
+
+    def test_split_indices_keep_class_ratio(self) -> None:
+        y = np.array(["a"] * 10 + ["b"] * 10)
+        train_index, test_index = stratified_split_indices(
+            y, test_size=0.2, random_state=42
+        )
+
+        self.assertEqual(len(train_index), 16)
+        self.assertEqual(len(test_index), 4)
+        self.assertEqual(int(np.sum(y[test_index] == "a")), 2)
+        self.assertEqual(int(np.sum(y[test_index] == "b")), 2)
+
+
+class TestKNNRegressor(unittest.TestCase):
+    def test_uniform_mean_prediction(self) -> None:
+        X_train = np.array([[0.0], [1.0], [2.0]])
+        y_train = np.array([10.0, 20.0, 30.0])
+        regressor = KNNRegressor(k=2, weights="uniform").fit(X_train, y_train)
+
+        prediction = regressor.predict(np.array([[0.9]]))[0]
+        self.assertAlmostEqual(prediction, 15.0)
+
+    def test_distance_weighted_prediction(self) -> None:
+        X_train = np.array([[0.0], [1.0], [2.0]])
+        y_train = np.array([10.0, 20.0, 30.0])
+        regressor = KNNRegressor(k=2, weights="distance").fit(X_train, y_train)
+
+        prediction = regressor.predict(np.array([[0.9]]))[0]
+        self.assertAlmostEqual(prediction, 19.0, places=6)
+
+    def test_exact_match_dominates_distance_weighting(self) -> None:
+        X_train = np.array([[0.0], [1.0]])
+        y_train = np.array([10.0, 20.0])
+        regressor = KNNRegressor(k=2, weights="distance").fit(X_train, y_train)
+
+        prediction = regressor.predict(np.array([[0.0]]))[0]
+        self.assertAlmostEqual(prediction, 10.0, places=6)
+
+    def test_predict_before_fit_raises(self) -> None:
+        regressor = KNNRegressor(k=1)
+        with self.assertRaises(RuntimeError):
+            regressor.predict(np.array([[0.0]]))
+
+    def test_k_too_large_raises(self) -> None:
+        regressor = KNNRegressor(k=3)
+        with self.assertRaises(ValueError):
+            regressor.fit(
+                np.array([[0.0], [1.0]]),
+                np.array([10.0, 20.0]),
+            )
+
+    def test_invalid_weights_raises(self) -> None:
+        with self.assertRaises(ValueError):
+            KNNRegressor(k=1, weights="linear")
 
 
 if __name__ == "__main__":
