@@ -236,6 +236,7 @@ python -m unittest -v test_knn.py
 - 全项目统一随机种子：`42`（定义在 `knn.py` 的 `RANDOM_SEED`）
 - 数据划分、交叉验证等所有随机操作都使用该种子
 - 标准化参数只由训练集计算，测试集只做变换，避免信息泄漏
+- 云端仓库：`https://github.com/bear22-xlh/git-como.git`
 
 ## 16. 运行方式
 
@@ -243,4 +244,4 @@ python -m unittest -v test_knn.py
 python main.py
 ```
 
-当前进度：全部 14 步已完成，报告见 `report.md`。
+当前进度：全部 14 步已完成，报告见 `report.md`，项目已推送到 GitHub。
