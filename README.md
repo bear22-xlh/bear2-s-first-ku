@@ -51,7 +51,10 @@ knn_practice/
 │       ├── k_selection.txt
 │       ├── evaluation_best_k.txt
 │       ├── evaluation_predictions.csv
-│       └── visualization_summary.txt
+│       ├── visualization_summary.txt
+│       ├── sklearn_comparison.txt
+│       ├── exception_checks.txt
+│       └── performance_comparison.txt
 ├── knn.py              # KNN 核心实现
 ├── main.py             # 项目入口与实验流程
 ├── test_knn.py         # 单元测试
@@ -153,7 +156,7 @@ python -m unittest -v test_knn.py
 - 用 k=5 在测试集上做最终评估：准确率 0.9667（29/30），与基线一致
 - 选择理由：k=5 的 5 折平均准确率最高，且标准差较小，说明不同折之间比较稳定
 - 记录：`outputs/metrics/k_selection.txt`、`outputs/metrics/evaluation_best_k.txt`、`outputs/metrics/evaluation_predictions.csv`
-- 验证：评估指标、分层折和交叉验证测试全部通过；当前项目共 46 个测试全部通过
+- 验证：评估指标、分层折和交叉验证测试全部通过；当前项目共 53 个测试全部通过
 
 ## 11. 可视化分析
 
@@ -171,16 +174,54 @@ python -m unittest -v test_knn.py
 - 所有图都有标题、坐标轴标签和图例；误分类样本已标注
 - 可视化说明：`outputs/metrics/visualization_summary.txt`
 
-## 12. 复现约定
+## 12. sklearn 对照实验
+
+- 使用 `sklearn.neighbors.KNeighborsClassifier(n_neighbors=5, metric="euclidean")`
+- 与手写实现使用相同的训练/测试划分、相同的标准化数据、相同的 k=5
+- 手写实现准确率：0.9667
+- sklearn 准确率：0.9667
+- 逐样本预测差异：0 / 30
+- 结论：手写 KNN 分类器与 sklearn 结果完全一致，说明距离计算、最近邻搜索和投票逻辑正确
+- 记录：`outputs/metrics/sklearn_comparison.txt`
+
+## 13. 异常处理与性能优化
+
+异常检查（全部通过，提示信息清晰）：
+
+| 场景 | 异常提示 |
+|---|---|
+| 空训练集 | 训练集不能为空 |
+| 特征数不一致 | 特征数不一致：训练集有 4 个特征，预测数据有 3 个特征 |
+| k 大于训练样本数 | k 不能大于训练样本数：k=1000, 训练样本数=119 |
+| k<=0 | k 必须是正整数 |
+| 非法距离度量 | metric 必须是 'euclidean' 或 'manhattan' |
+| 空预测数据 | 预测数据不能为空 |
+| 长度不一致 | X 和 y 的样本数不一致：119 != 118 |
+| 平票但缺少距离 | 出现平票时必须提供 distances，按最近邻距离打破平票 |
+
+性能对比（4 个特征，重复 3 次取平均）：
+
+| 数据规模 | 循环版 | 向量化版 | 加速 |
+|---|---:|---:|---:|
+| 100 x 100 | 120.31 ms | 0.48 ms | 252.3 倍 |
+| 300 x 150 | 450.63 ms | 2.94 ms | 153.1 倍 |
+| 500 x 250 | 1204.35 ms | 7.49 ms | 160.9 倍 |
+
+- 循环版 `pairwise_distances_loop()` 只用于性能对比，生产代码使用向量化 `pairwise_distances()`
+- 向量化版用 NumPy 广播，把双重 Python 循环交给底层 C 实现，所以快 150 倍以上
+- 记录：`outputs/metrics/exception_checks.txt`、`outputs/metrics/performance_comparison.txt`
+- 验证：循环版与向量化版结果一致；当前项目共 53 个测试全部通过
+
+## 14. 复现约定
 
 - 全项目统一随机种子：`42`（定义在 `knn.py` 的 `RANDOM_SEED`）
 - 数据划分、交叉验证等所有随机操作都使用该种子
 - 标准化参数只由训练集计算，测试集只做变换，避免信息泄漏
 
-## 13. 运行方式
+## 15. 运行方式
 
 ```bash
 python main.py
 ```
 
-当前进度：第 10 步（可视化分析）已完成。
+当前进度：第 11-12 步（sklearn 对照、异常处理与性能优化）已完成。

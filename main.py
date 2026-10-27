@@ -3,13 +3,15 @@
 第 1 步完成环境自检；第 2 步加入数据读取、概况统计和简单可视化；
 第 3 步加入分层划分和 Z-score 标准化；第 4-5 步加入距离函数和最近邻搜索演示；
 第 6 步加入 KNN 分类器演示；第 7 步加入 KNN 回归演示；
-第 8-9 步加入模型评估、交叉验证与 k 值选择。后续步骤会继续接入可视化与报告。
+第 8-9 步加入模型评估、交叉验证与 k 值选择；第 10 步加入可视化；
+第 11-12 步加入 sklearn 对照、异常检查与性能对比。后续接入测试与报告。
 """
 
 from __future__ import annotations
 
 import platform
 import sys
+import time
 from pathlib import Path
 
 import matplotlib
@@ -33,6 +35,8 @@ from knn import (
     majority_vote,
     manhattan_distance,
     nearest_neighbors,
+    pairwise_distances,
+    pairwise_distances_loop,
     stratified_split_indices,
 )
 
@@ -659,6 +663,128 @@ def demonstrate_regression(
     return "\n".join(lines), results
 
 
+def compare_with_sklearn(
+    X_train: np.ndarray,
+    X_test: np.ndarray,
+    y_train: np.ndarray,
+    y_test: np.ndarray,
+    our_predictions: np.ndarray,
+    k: int,
+) -> str:
+    """用 sklearn KNeighborsClassifier 做同条件对照，返回对照文本。"""
+    from sklearn.neighbors import KNeighborsClassifier
+
+    sklearn_model = KNeighborsClassifier(n_neighbors=k, metric="euclidean")
+    sklearn_model.fit(X_train, y_train)
+    sklearn_predictions = sklearn_model.predict(X_test)
+
+    our_accuracy = accuracy_score(y_test, our_predictions)
+    sklearn_accuracy = accuracy_score(y_test, sklearn_predictions)
+    differences = np.flatnonzero(our_predictions != sklearn_predictions)
+
+    lines = [
+        f"sklearn 对照（KNeighborsClassifier, k={k}, metric='euclidean'）:",
+        f"  手写实现准确率: {our_accuracy:.4f}",
+        f"  sklearn 准确率: {sklearn_accuracy:.4f}",
+        f"  预测不同的样本数: {len(differences)} / {len(y_test)}",
+    ]
+    for index in differences:
+        lines.append(
+            f"  样本 {int(index)}: 真实={y_test[index]}, "
+            f"手写={our_predictions[index]}, sklearn={sklearn_predictions[index]}"
+        )
+    if len(differences) == 0:
+        lines.append("  两者逐样本预测完全一致。")
+    else:
+        lines.append(
+            "  差异原因: 距离完全相同的并列邻居选择规则不同。"
+            "手写实现按训练集索引稳定排序，sklearn 内部算法可能选择另一个并列邻居。"
+        )
+    return "\n".join(lines)
+
+
+def run_exception_checks(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+) -> str:
+    """触发常见异常场景，记录异常类型和提示信息。"""
+    checks: list[str] = []
+
+    def capture(name: str, action) -> None:
+        try:
+            action()
+        except Exception as error:
+            checks.append(f"PASS  {name}: {type(error).__name__}: {error}")
+        else:
+            checks.append(f"FAIL  {name}: 未抛出异常")
+
+    capture(
+        "空训练集",
+        lambda: KNNClassifier(k=1).fit(np.empty((0, 4)), np.array([])),
+    )
+    capture(
+        "特征数不一致",
+        lambda: (
+            KNNClassifier(k=1)
+            .fit(X_train, y_train)
+            .predict(np.zeros((1, 3)))
+        ),
+    )
+    capture(
+        "k 大于训练样本数",
+        lambda: KNNClassifier(k=1000).fit(X_train, y_train),
+    )
+    capture("k 小于等于 0", lambda: KNNClassifier(k=0))
+    capture("非法距离度量", lambda: KNNClassifier(k=1, metric="cosine"))
+    capture(
+        "空预测数据",
+        lambda: (
+            KNNClassifier(k=1)
+            .fit(X_train, y_train)
+            .predict(np.empty((0, 4)))
+        ),
+    )
+    capture(
+        "长度不一致",
+        lambda: KNNClassifier(k=1).fit(X_train, y_train[:-1]),
+    )
+    capture("平票但缺少距离", lambda: majority_vote(np.array(["a", "b"])))
+    return "\n".join(checks)
+
+
+def benchmark_distance_functions(repeats: int = 3) -> str:
+    """比较循环版和向量化版距离计算的耗时。"""
+    if repeats < 1:
+        raise ValueError("repeats 必须大于 0")
+
+    rng = np.random.default_rng(RANDOM_SEED)
+    sizes = [(100, 100), (300, 150), (500, 250)]
+    lines = [f"距离计算性能对比（4 个特征，重复 {repeats} 次取平均）:"]
+
+    for n_samples, m_samples in sizes:
+        X = rng.normal(size=(n_samples, 4))
+        Y = rng.normal(size=(m_samples, 4))
+
+        start = time.perf_counter()
+        for _ in range(repeats):
+            pairwise_distances_loop(X, Y)
+        loop_seconds = (time.perf_counter() - start) / repeats
+
+        start = time.perf_counter()
+        for _ in range(repeats):
+            pairwise_distances(X, Y)
+        vector_seconds = (time.perf_counter() - start) / repeats
+
+        speedup = loop_seconds / vector_seconds if vector_seconds else float("inf")
+        lines.append(
+            f"  {n_samples} x {m_samples}: "
+            f"循环版 {loop_seconds * 1000:.2f} ms, "
+            f"向量化 {vector_seconds * 1000:.2f} ms, "
+            f"加速 {speedup:.1f} 倍"
+        )
+    return "\n".join(lines)
+
+
 def main() -> None:
     show_environment()
 
@@ -850,6 +976,34 @@ def main() -> None:
     print(f"决策边界图已保存: {boundary_path}")
     print(f"混淆矩阵热力图已保存: {confusion_path}")
     print(f"可视化说明已保存: {visualization_summary_path}")
+
+    # 第 11 步：sklearn 分类器对照。
+    sklearn_text = compare_with_sklearn(
+        X_train, X_test, y_train, y_test, final_predictions, best_k
+    )
+    print("\n第 11 步 sklearn 对照:")
+    print(sklearn_text)
+
+    sklearn_path = METRICS_DIR / "sklearn_comparison.txt"
+    sklearn_path.write_text(sklearn_text + "\n", encoding="utf-8")
+    print(f"\nsklearn 对照记录已保存: {sklearn_path}")
+
+    # 第 12 步：异常处理检查与性能对比。
+    exception_text = run_exception_checks(X_train_raw, y_train_raw)
+    print("\n第 12 步 异常处理检查:")
+    print(exception_text)
+
+    exception_path = METRICS_DIR / "exception_checks.txt"
+    exception_path.write_text(exception_text + "\n", encoding="utf-8")
+
+    performance_text = benchmark_distance_functions(repeats=3)
+    print("\n第 12 步 性能对比:")
+    print(performance_text)
+
+    performance_path = METRICS_DIR / "performance_comparison.txt"
+    performance_path.write_text(performance_text + "\n", encoding="utf-8")
+    print(f"\n异常检查记录已保存: {exception_path}")
+    print(f"性能对比记录已保存: {performance_path}")
 
 
 if __name__ == "__main__":

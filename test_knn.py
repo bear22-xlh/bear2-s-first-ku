@@ -18,6 +18,7 @@ from knn import (
     manhattan_distance,
     nearest_neighbors,
     pairwise_distances,
+    pairwise_distances_loop,
     stratified_kfold_indices,
     stratified_split_indices,
 )
@@ -352,6 +353,50 @@ class TestCrossValidateKNN(unittest.TestCase):
         y = np.array(["a", "b"])
         with self.assertRaises(ValueError):
             cross_validate_knn(X, y, k_values=[0], n_splits=2, random_state=42)
+
+
+class TestPairwiseDistancesLoop(unittest.TestCase):
+    def test_loop_matches_vectorized_euclidean(self) -> None:
+        rng = np.random.default_rng(0)
+        X = rng.normal(size=(6, 3))
+        Y = rng.normal(size=(4, 3))
+        np.testing.assert_allclose(
+            pairwise_distances_loop(X, Y),
+            pairwise_distances(X, Y),
+        )
+
+    def test_loop_matches_vectorized_manhattan(self) -> None:
+        rng = np.random.default_rng(1)
+        X = rng.normal(size=(5, 2))
+        Y = rng.normal(size=(3, 2))
+        np.testing.assert_allclose(
+            pairwise_distances_loop(X, Y, metric="manhattan"),
+            pairwise_distances(X, Y, metric="manhattan"),
+        )
+
+    def test_loop_rejects_unknown_metric(self) -> None:
+        with self.assertRaises(ValueError):
+            pairwise_distances_loop(
+                np.zeros((2, 2)), np.zeros((2, 2)), metric="cosine"
+            )
+
+    def test_loop_rejects_dimension_mismatch(self) -> None:
+        with self.assertRaises(ValueError):
+            pairwise_distances_loop(np.zeros((2, 3)), np.zeros((2, 4)))
+
+
+class TestAdditionalValidation(unittest.TestCase):
+    def test_classifier_rejects_empty_training_data(self) -> None:
+        with self.assertRaises(ValueError):
+            KNNClassifier(k=1).fit(np.empty((0, 4)), np.array([]))
+
+    def test_classifier_rejects_invalid_k(self) -> None:
+        with self.assertRaises(ValueError):
+            KNNClassifier(k=0)
+
+    def test_classifier_rejects_invalid_metric(self) -> None:
+        with self.assertRaises(ValueError):
+            KNNClassifier(k=1, metric="cosine")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,8 @@
+PASS  空训练集: ValueError: 训练集不能为空
+PASS  特征数不一致: ValueError: 特征数不一致：训练集有 4 个特征，预测数据有 3 个特征
+PASS  k 大于训练样本数: ValueError: k 不能大于训练样本数：k=1000, 训练样本数=119
+PASS  k 小于等于 0: ValueError: k 必须是正整数
+PASS  非法距离度量: ValueError: metric 必须是 'euclidean' 或 'manhattan'
+PASS  空预测数据: ValueError: 预测数据不能为空
+PASS  长度不一致: ValueError: X 和 y 的样本数不一致：119 != 118
+PASS  平票但缺少距离: ValueError: 出现平票时必须提供 distances，按最近邻距离打破平票

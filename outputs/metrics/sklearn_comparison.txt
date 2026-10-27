@@ -1,0 +1,5 @@
+sklearn 对照（KNeighborsClassifier, k=5, metric='euclidean'）:
+  手写实现准确率: 0.9667
+  sklearn 准确率: 0.9667
+  预测不同的样本数: 0 / 30
+  两者逐样本预测完全一致。

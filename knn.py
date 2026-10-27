@@ -197,6 +197,40 @@ def pairwise_distances(
     )
 
 
+def pairwise_distances_loop(
+    X: np.ndarray,
+    Y: np.ndarray,
+    metric: str = "euclidean",
+) -> np.ndarray:
+    """用双重循环计算距离矩阵，仅用于和向量化版本对比性能。
+
+    生产代码请使用 pairwise_distances()。
+    """
+    X = np.asarray(X, dtype=float)
+    Y = np.asarray(Y, dtype=float)
+
+    if X.ndim != 2 or Y.ndim != 2:
+        raise ValueError("X 和 Y 必须是二维数组")
+    if X.shape[1] != Y.shape[1]:
+        raise ValueError(
+            f"特征数不一致：X 有 {X.shape[1]} 个特征，Y 有 {Y.shape[1]} 个特征"
+        )
+    if metric not in {"euclidean", "manhattan"}:
+        raise ValueError(
+            f"不支持的距离度量: {metric!r}，可选 'euclidean' 或 'manhattan'"
+        )
+
+    distances = np.zeros((X.shape[0], Y.shape[0]), dtype=float)
+    for i in range(X.shape[0]):
+        for j in range(Y.shape[0]):
+            diff = X[i] - Y[j]
+            if metric == "euclidean":
+                distances[i, j] = np.sqrt(np.sum(diff ** 2))
+            else:
+                distances[i, j] = np.sum(np.abs(diff))
+    return distances
+
+
 def nearest_neighbors(
     X_train: np.ndarray,
     X_query: np.ndarray,
@@ -658,6 +692,7 @@ __all__ = [
     "euclidean_distance",
     "manhattan_distance",
     "pairwise_distances",
+    "pairwise_distances_loop",
     "nearest_neighbors",
     "majority_vote",
     "KNNClassifier",
