@@ -55,6 +55,11 @@ REGRESSION_FEATURE_COLUMNS = [
 REGRESSION_TARGET_COLUMN = "petal width (cm)"
 TARGET_COLUMN = "target_name"
 CLASS_ORDER = ["setosa", "versicolor", "virginica"]
+CLASS_COLORS = {
+    "setosa": "#1f77b4",
+    "versicolor": "#ff7f0e",
+    "virginica": "#2ca02c",
+}
 K_VALUES = list(range(1, 16))
 CV_FOLDS = 5
 
@@ -155,6 +160,222 @@ def plot_petal_scatter(df: pd.DataFrame, output_path: Path) -> None:
     fig.tight_layout()
     fig.savefig(output_path, dpi=150)
     plt.close(fig)
+
+
+def plot_petal_scatter_with_errors(
+    X_train_raw: np.ndarray,
+    X_test_raw: np.ndarray,
+    y_train: np.ndarray,
+    y_test: np.ndarray,
+    predictions: np.ndarray,
+    output_path: Path,
+) -> None:
+    """画花瓣特征二维散点图，并用黑色叉号标出完整模型的误分类样本。"""
+    train_petal = X_train_raw[:, [2, 3]]
+    test_petal = X_test_raw[:, [2, 3]]
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    for class_name in CLASS_ORDER:
+        color = CLASS_COLORS[class_name]
+        train_mask = y_train == class_name
+        test_mask = y_test == class_name
+        ax.scatter(
+            train_petal[train_mask, 0],
+            train_petal[train_mask, 1],
+            c=color,
+            s=18,
+            alpha=0.35,
+            edgecolors="none",
+        )
+        ax.scatter(
+            test_petal[test_mask, 0],
+            test_petal[test_mask, 1],
+            c=color,
+            s=60,
+            alpha=0.9,
+            edgecolors="white",
+            linewidths=0.8,
+            label=class_name,
+        )
+
+    errors = predictions != y_test
+    ax.scatter(
+        test_petal[errors, 0],
+        test_petal[errors, 1],
+        marker="x",
+        s=120,
+        c="black",
+        linewidths=2,
+        label="misclassified (full model)",
+    )
+    ax.scatter([], [], c="gray", s=18, alpha=0.35, label="training samples (faded)")
+
+    ax.set_xlabel("Petal length (cm)")
+    ax.set_ylabel("Petal width (cm)")
+    ax.set_title("Petal features: full 4D model test errors (shown in 2D)")
+    ax.legend(loc="upper left")
+    ax.grid(alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+
+
+def plot_decision_boundary_2d(
+    X_train_raw: np.ndarray,
+    X_test_raw: np.ndarray,
+    y_train: np.ndarray,
+    y_test: np.ndarray,
+    output_path: Path,
+    k: int = 5,
+) -> tuple[float, np.ndarray]:
+    """用花瓣长度和宽度训练二维 KNN，画决策边界并标出误分类样本。"""
+    train_petal = X_train_raw[:, [2, 3]]
+    test_petal = X_test_raw[:, [2, 3]]
+
+    scaler = StandardScaler()
+    X_train_2d = scaler.fit_transform(train_petal)
+    X_test_2d = scaler.transform(test_petal)
+
+    model = KNNClassifier(k=k, metric="euclidean").fit(X_train_2d, y_train)
+    predictions = model.predict(X_test_2d)
+    accuracy = accuracy_score(y_test, predictions)
+
+    all_petal = np.vstack([train_petal, test_petal])
+    x_min, x_max = all_petal[:, 0].min() - 0.4, all_petal[:, 0].max() + 0.4
+    y_min, y_max = all_petal[:, 1].min() - 0.25, all_petal[:, 1].max() + 0.25
+    xx, yy = np.meshgrid(
+        np.linspace(x_min, x_max, 220),
+        np.linspace(y_min, y_max, 220),
+    )
+    grid = np.c_[xx.ravel(), yy.ravel()]
+    grid_predictions = model.predict(scaler.transform(grid))
+
+    class_to_index = {label: index for index, label in enumerate(CLASS_ORDER)}
+    z = np.array([class_to_index[label] for label in grid_predictions]).reshape(
+        xx.shape
+    )
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.contourf(
+        xx,
+        yy,
+        z,
+        levels=[-0.5, 0.5, 1.5, 2.5],
+        colors=[CLASS_COLORS[label] for label in CLASS_ORDER],
+        alpha=0.25,
+    )
+
+    for class_name in CLASS_ORDER:
+        color = CLASS_COLORS[class_name]
+        train_mask = y_train == class_name
+        test_mask = y_test == class_name
+        ax.scatter(
+            train_petal[train_mask, 0],
+            train_petal[train_mask, 1],
+            c=color,
+            s=18,
+            alpha=0.35,
+            edgecolors="none",
+        )
+        ax.scatter(
+            test_petal[test_mask, 0],
+            test_petal[test_mask, 1],
+            c=color,
+            s=60,
+            alpha=0.9,
+            edgecolors="white",
+            linewidths=0.8,
+            label=f"{class_name} (test)",
+        )
+
+    errors = predictions != y_test
+    ax.scatter(
+        test_petal[errors, 0],
+        test_petal[errors, 1],
+        marker="x",
+        s=120,
+        c="black",
+        linewidths=2,
+        label="misclassified (2D model)",
+    )
+    ax.scatter([], [], c="gray", s=18, alpha=0.35, label="training samples (faded)")
+
+    ax.set_xlim(x_min, x_max)
+    ax.set_ylim(y_min, y_max)
+    ax.set_xlabel("Petal length (cm)")
+    ax.set_ylabel("Petal width (cm)")
+    ax.set_title(
+        f"Decision boundary (2D petal features, k={k})\n"
+        "Simplified 2D model; full model uses 4 features"
+    )
+    ax.text(
+        0.02,
+        0.98,
+        f"2D test accuracy: {accuracy:.4f}",
+        transform=ax.transAxes,
+        va="top",
+        bbox={"facecolor": "white", "alpha": 0.8, "edgecolor": "none"},
+    )
+    ax.legend(loc="upper right")
+    ax.grid(alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+    return accuracy, predictions
+
+
+def plot_confusion_matrix_heatmap(
+    matrix: np.ndarray,
+    labels: list[str],
+    output_path: Path,
+    title: str,
+) -> None:
+    """把混淆矩阵画成热力图。"""
+    fig, ax = plt.subplots(figsize=(6, 5))
+    image = ax.imshow(matrix, cmap="Blues")
+    ax.set_xticks(np.arange(len(labels)))
+    ax.set_yticks(np.arange(len(labels)))
+    ax.set_xticklabels(labels)
+    ax.set_yticklabels(labels)
+    ax.set_xlabel("Predicted label")
+    ax.set_ylabel("True label")
+    ax.set_title(title)
+
+    threshold = matrix.max() / 2
+    for row in range(len(labels)):
+        for column in range(len(labels)):
+            value = int(matrix[row, column])
+            color = "white" if value > threshold else "black"
+            ax.text(
+                column,
+                row,
+                str(value),
+                ha="center",
+                va="center",
+                color=color,
+            )
+
+    fig.colorbar(image, ax=ax, fraction=0.046, pad=0.04)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+
+
+def build_visualization_summary(
+    accuracy_2d: float,
+    accuracy_full: float,
+    k: int,
+) -> str:
+    """生成可视化部分的说明文字。"""
+    lines = [
+        f"二维可视化模型（花瓣长度 + 花瓣宽度，k={k}）:",
+        f"  测试集准确率: {accuracy_2d:.4f}",
+        f"完整 4 维模型（k={k}）测试集准确率: {accuracy_full:.4f}",
+        "",
+        "说明: 决策边界只能在二维平面绘制，因此二维模型只用于可视化；",
+        "完整模型使用 4 个特征，模型评估以完整模型为准。",
+    ]
+    return "\n".join(lines)
 
 
 def split_classification_data(
@@ -539,7 +760,9 @@ def main() -> None:
     print(f"\nk=5 评估记录已保存: {evaluation_k5_path}")
 
     # 第 9 步：只在训练集上做分层 5 折交叉验证，选 k。
-    X_train_raw, _, y_train_raw, _ = split_classification_data(clean_df)
+    X_train_raw, X_test_raw, y_train_raw, y_test_raw = split_classification_data(
+        clean_df
+    )
     cv_results = cross_validate_knn(
         X_train_raw,
         y_train_raw,
@@ -582,6 +805,51 @@ def main() -> None:
     evaluation_predictions.to_csv(evaluation_predictions_path, index=False)
     print(f"\n最优 k 评估记录已保存: {evaluation_best_path}")
     print(f"测试集预测明细已保存: {evaluation_predictions_path}")
+
+    # 第 10 步：可视化分析。
+    scatter_errors_path = FIGURES_DIR / "petal_scatter_with_errors.png"
+    plot_petal_scatter_with_errors(
+        X_train_raw,
+        X_test_raw,
+        y_train_raw,
+        y_test_raw,
+        final_predictions,
+        scatter_errors_path,
+    )
+
+    boundary_path = FIGURES_DIR / "petal_decision_boundary.png"
+    accuracy_2d, _ = plot_decision_boundary_2d(
+        X_train_raw,
+        X_test_raw,
+        y_train_raw,
+        y_test_raw,
+        boundary_path,
+        k=best_k,
+    )
+
+    confusion_path = FIGURES_DIR / "confusion_matrix.png"
+    full_matrix = confusion_matrix(y_test, final_predictions, labels=CLASS_ORDER)
+    plot_confusion_matrix_heatmap(
+        full_matrix,
+        CLASS_ORDER,
+        confusion_path,
+        f"Confusion matrix (full 4D model, k={best_k})",
+    )
+
+    visualization_summary = build_visualization_summary(
+        accuracy_2d, final_accuracy, best_k
+    )
+    print("\n第 10 步 可视化:")
+    print(visualization_summary)
+
+    visualization_summary_path = METRICS_DIR / "visualization_summary.txt"
+    visualization_summary_path.write_text(
+        visualization_summary + "\n", encoding="utf-8"
+    )
+    print(f"\n二维散点图（含误分类）已保存: {scatter_errors_path}")
+    print(f"决策边界图已保存: {boundary_path}")
+    print(f"混淆矩阵热力图已保存: {confusion_path}")
+    print(f"可视化说明已保存: {visualization_summary_path}")
 
 
 if __name__ == "__main__":

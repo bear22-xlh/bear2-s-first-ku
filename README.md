@@ -36,7 +36,10 @@ knn_practice/
 │   ├── figures/
 │   │   ├── feature_histograms.png
 │   │   ├── petal_scatter.png
-│   │   └── k_accuracy_curve.png
+│   │   ├── k_accuracy_curve.png
+│   │   ├── petal_scatter_with_errors.png
+│   │   ├── petal_decision_boundary.png
+│   │   └── confusion_matrix.png
 │   └── metrics/
 │       ├── data_overview.txt
 │       ├── preprocessing_summary.txt
@@ -47,7 +50,8 @@ knn_practice/
 │       ├── evaluation_k5.txt
 │       ├── k_selection.txt
 │       ├── evaluation_best_k.txt
-│       └── evaluation_predictions.csv
+│       ├── evaluation_predictions.csv
+│       └── visualization_summary.txt
 ├── knn.py              # KNN 核心实现
 ├── main.py             # 项目入口与实验流程
 ├── test_knn.py         # 单元测试
@@ -151,16 +155,32 @@ python -m unittest -v test_knn.py
 - 记录：`outputs/metrics/k_selection.txt`、`outputs/metrics/evaluation_best_k.txt`、`outputs/metrics/evaluation_predictions.csv`
 - 验证：评估指标、分层折和交叉验证测试全部通过；当前项目共 46 个测试全部通过
 
-## 11. 复现约定
+## 11. 可视化分析
+
+- 二维散点图：`outputs/figures/petal_scatter_with_errors.png`
+  - 按真实类别着色
+  - 小点是训练样本，大点是测试样本
+  - 黑色叉号标出完整 4 维模型的误分类样本，共 1 个（virginica 被判成 versicolor）
+- 决策边界图：`outputs/figures/petal_decision_boundary.png`
+  - 用花瓣长度、花瓣宽度训练二维 KNN（k=5），背景颜色表示预测区域
+  - 二维模型测试集准确率 0.9667；完整 4 维模型也是 0.9667
+  - 二维模型只用于可视化，完整模型使用 4 个特征，评估以完整模型为准
+- 混淆矩阵热力图：`outputs/figures/confusion_matrix.png`
+  - 完整 4 维模型、k=5 的测试集混淆矩阵
+- k-准确率曲线：`outputs/figures/k_accuracy_curve.png`（第 9 步生成）
+- 所有图都有标题、坐标轴标签和图例；误分类样本已标注
+- 可视化说明：`outputs/metrics/visualization_summary.txt`
+
+## 12. 复现约定
 
 - 全项目统一随机种子：`42`（定义在 `knn.py` 的 `RANDOM_SEED`）
 - 数据划分、交叉验证等所有随机操作都使用该种子
 - 标准化参数只由训练集计算，测试集只做变换，避免信息泄漏
 
-## 12. 运行方式
+## 13. 运行方式
 
 ```bash
 python main.py
 ```
 
-当前进度：第 9 步（模型评估与 k 值选择）已完成。
+当前进度：第 10 步（可视化分析）已完成。
