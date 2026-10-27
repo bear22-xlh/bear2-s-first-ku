@@ -1,7 +1,8 @@
 """KNN 课堂实践项目入口。
 
 第 1 步完成环境自检；第 2 步加入数据读取、概况统计和简单可视化；
-第 3 步加入分层划分和 Z-score 标准化。后续步骤会继续接入 KNN 实现、评估与报告。
+第 3 步加入分层划分和 Z-score 标准化；第 4-5 步加入距离函数和最近邻搜索演示。
+后续步骤会继续接入 KNN 分类、回归、评估与报告。
 """
 
 from __future__ import annotations
@@ -18,7 +19,14 @@ import numpy as np
 import pandas as pd
 import sklearn
 
-from knn import RANDOM_SEED, StandardScaler, train_test_split_stratified
+from knn import (
+    RANDOM_SEED,
+    StandardScaler,
+    euclidean_distance,
+    manhattan_distance,
+    nearest_neighbors,
+    train_test_split_stratified,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 DATA_PATH = PROJECT_ROOT / "data" / "iris_dataset.csv"
@@ -198,6 +206,35 @@ def summarize_preprocessing(
     return "\n".join(lines)
 
 
+def demonstrate_distance_and_neighbors(
+    X_train: np.ndarray,
+    X_test: np.ndarray,
+    y_train: np.ndarray,
+    y_test: np.ndarray,
+    k: int = 5,
+) -> str:
+    """校验距离函数，并展示一个测试样本的 k 个最近邻。"""
+    p1 = np.array([0.0, 0.0])
+    p2 = np.array([3.0, 4.0])
+
+    query = X_test[0]
+    neighbor_indices, neighbor_distances = nearest_neighbors(X_train, query, k=k)
+    neighbor_labels = y_train[neighbor_indices[0]]
+
+    lines = [
+        "距离函数校验:",
+        f"  欧氏距离([0,0], [3,4]) = {euclidean_distance(p1, p2):.4f}（手算 5.0000）",
+        f"  曼哈顿距离([0,0], [3,4]) = {manhattan_distance(p1, p2):.4f}（手算 7.0000）",
+        "",
+        f"最近邻搜索演示（标准化后测试集第 1 个样本，k={k}）:",
+        f"  真实类别: {y_test[0]}",
+        f"  邻居索引: {neighbor_indices[0].tolist()}",
+        f"  邻居距离: {np.round(neighbor_distances[0], 4).tolist()}",
+        f"  邻居类别: {neighbor_labels.tolist()}",
+    ]
+    return "\n".join(lines)
+
+
 def main() -> None:
     show_environment()
 
@@ -251,6 +288,16 @@ def main() -> None:
     preprocessing_path = METRICS_DIR / "preprocessing_summary.txt"
     preprocessing_path.write_text(preprocessing_summary + "\n", encoding="utf-8")
     print(f"\n预处理记录已保存: {preprocessing_path}")
+
+    neighbor_demo = demonstrate_distance_and_neighbors(
+        X_train, X_test, y_train, y_test, k=5
+    )
+    print("\n距离与最近邻演示:")
+    print(neighbor_demo)
+
+    neighbor_demo_path = METRICS_DIR / "nearest_neighbors_demo.txt"
+    neighbor_demo_path.write_text(neighbor_demo + "\n", encoding="utf-8")
+    print(f"\n最近邻演示记录已保存: {neighbor_demo_path}")
 
 
 if __name__ == "__main__":

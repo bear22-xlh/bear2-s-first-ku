@@ -38,9 +38,11 @@ knn_practice/
 │   │   └── petal_scatter.png
 │   └── metrics/
 │       ├── data_overview.txt
-│       └── preprocessing_summary.txt
+│       ├── preprocessing_summary.txt
+│       └── nearest_neighbors_demo.txt
 ├── knn.py              # KNN 核心实现
 ├── main.py             # 项目入口与实验流程
+├── test_knn.py         # 单元测试
 ├── requirements.txt    # 依赖版本
 └── README.md
 ```
@@ -70,16 +72,32 @@ knn_practice/
 - 验证：两次运行的划分完全一致；标准化结果与 sklearn `StandardScaler` 一致
 - 预处理记录：`outputs/metrics/preprocessing_summary.txt`
 
-## 6. 复现约定
+## 6. 距离函数与最近邻搜索
+
+- 欧氏距离：`sqrt(sum((x1 - x2) ** 2))`
+- 曼哈顿距离：`sum(abs(x1 - x2))`
+- `pairwise_distances()` 用 NumPy 广播计算任意两组样本的距离矩阵，不写双重循环
+- `nearest_neighbors()` 对距离做稳定排序，取前 k 个邻居，返回索引和距离
+- 参数检查：k 必须是正整数且不超过训练样本数；训练集和查询样本特征数必须一致
+- 验证：12 个单元测试全部通过；真实数据上的欧氏/曼哈顿距离矩阵与 sklearn 一致
+- 演示记录：`outputs/metrics/nearest_neighbors_demo.txt`
+
+测试命令：
+
+```bash
+python -m unittest -v test_knn.py
+```
+
+## 7. 复现约定
 
 - 全项目统一随机种子：`42`（定义在 `knn.py` 的 `RANDOM_SEED`）
 - 数据划分、交叉验证等所有随机操作都使用该种子
 - 标准化参数只由训练集计算，测试集只做变换，避免信息泄漏
 
-## 7. 运行方式
+## 8. 运行方式
 
 ```bash
 python main.py
 ```
 
-当前进度：第 3 步（数据预处理）已完成。
+当前进度：第 4-5 步（距离函数与最近邻搜索）已完成。
